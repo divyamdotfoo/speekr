@@ -1,47 +1,23 @@
-import { Command } from "commander";
-import { resetDatabase, setupDatabase } from "./db/queries.ts";
+import { Command, CommanderError } from "commander";
+import { registerCommands } from "./commands/register-commands.ts";
+import { applySetupGuard } from "./middleware/setup-guard.ts";
 
-export function cli() {
+export async function cli() {
   const program = new Command();
 
   program.name("speekr").description("Practice speaking languages locally");
+  registerCommands(program);
+  applySetupGuard(program);
 
-  program
-    .command("start")
-    .description("Start the application")
-    .action(() => {
-      console.log("Starting the application");
-    });
+  try {
+    await program.parseAsync(process.argv);
+  } catch (error) {
+    if (error instanceof CommanderError) {
+      console.error(error.message);
+      process.exitCode = error.exitCode;
+      return;
+    }
 
-  program
-    .command("setup")
-    .description("Setup db")
-    .action(() => {
-      setupDatabase();
-      console.log("Database tables created");
-    });
-
-  program
-    .command("reset")
-    .description("Delete the database")
-    .action(() => {
-      resetDatabase();
-      console.log("Database deleted");
-    });
-
-  program
-    .command("record")
-    .description("Start new learing session")
-    .action(() => {
-      console.log("Recording a new audio file");
-    });
-
-  program
-    .command("list")
-    .description("List all learning sessions")
-    .action(() => {
-      console.log("Listing all learning sessions");
-    });
-
-  program.parse(process.argv);
+    throw error;
+  }
 }

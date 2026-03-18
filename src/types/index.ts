@@ -1,14 +1,13 @@
 export type User = {
   id: string;
   name: string;
-  updatedAt: string;
 };
 
 export type UserTrack = {
   id: string;
   userId: string;
   language: string;
-  proficiency: string;
+  proficiency: ProficiencyLevel;
 };
 
 export type UserSession = {
@@ -21,3 +20,5 @@ export type Configuration = {
   openAIKey: string | null;
   anthropicKey: string | null;
 };
+
+export type ProficiencyLevel = "beginner" | "intermediate" | "advanced";

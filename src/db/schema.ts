@@ -4,8 +4,7 @@ export function createSchema(db: Database.Database) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      name TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS user_tracks (

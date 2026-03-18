@@ -1,39 +1,32 @@
 import { nanoid } from "nanoid";
 import { rmSync } from "node:fs";
-import { DATABASE_PATH } from "./client.ts";
-import { createDatabaseClient } from "./client.ts";
-import { createSchema } from "./schema.ts";
+import {
+  closeDatabaseClient,
+  DATABASE_PATH,
+  getDatabaseClient,
+} from "./client.ts";
 import type {
   Configuration,
+  ProficiencyLevel,
   User,
   UserSession,
   UserTrack,
 } from "../types/index.ts";
 
-export function setupDatabase() {
-  const db = createDatabaseClient();
-  createSchema(db);
-  db.close();
-}
-
 export function resetDatabase() {
+  closeDatabaseClient();
   rmSync(DATABASE_PATH, { force: true });
 }
 
 export function createUser(name: string): User {
-  const db = createDatabaseClient();
-  createSchema(db);
+  const db = getDatabaseClient();
 
   const user: User = {
     id: nanoid(),
     name,
-    updatedAt: new Date().toISOString(),
   };
 
-  db.prepare(
-    "INSERT INTO users (id, name, updated_at) VALUES (@id, @name, @updatedAt)",
-  ).run(user);
-  db.close();
+  db.prepare("INSERT INTO users (id, name) VALUES (@id, @name)").run(user);
 
   return user;
 }
@@ -41,11 +34,10 @@ export function createUser(name: string): User {
 export function createUserTrack(input: {
   userId: string;
   language: string;
-  proficiency: string;
+  proficiency: ProficiencyLevel;
 }): UserTrack {
   const { userId, language, proficiency } = input;
-  const db = createDatabaseClient();
-  createSchema(db);
+  const db = getDatabaseClient();
 
   const track: UserTrack = {
     id: nanoid(),
@@ -55,9 +47,8 @@ export function createUserTrack(input: {
   };
 
   db.prepare(
-    "INSERT INTO user_tracks (id, user_id, language, proficiency) VALUES (@id, @userId, @language, @proficiency)",
+    "INSERT INTO user_tracks (id, user_id, language, proficiency) VALUES (@id, @userId, @language, @proficiency)"
   ).run(track);
-  db.close();
 
   return track;
 }
@@ -67,8 +58,7 @@ export function createUserSession(input: {
   userTrackId: string;
 }): UserSession {
   const { userId, userTrackId } = input;
-  const db = createDatabaseClient();
-  createSchema(db);
+  const db = getDatabaseClient();
 
   const session: UserSession = {
     id: nanoid(),
@@ -77,20 +67,91 @@ export function createUserSession(input: {
   };
 
   db.prepare(
-    "INSERT INTO user_sessions (id, user_id, user_track_id) VALUES (@id, @userId, @userTrackId)",
+    "INSERT INTO user_sessions (id, user_id, user_track_id) VALUES (@id, @userId, @userTrackId)"
   ).run(session);
-  db.close();
 
   return session;
 }
 
 export function saveConfiguration(config: Configuration) {
-  const db = createDatabaseClient();
-  createSchema(db);
+  const db = getDatabaseClient();
 
   db.exec("DELETE FROM configuration");
   db.prepare(
-    "INSERT INTO configuration (openAIKey, anthropicKey) VALUES (@openAIKey, @anthropicKey)",
+    "INSERT INTO configuration (openAIKey, anthropicKey) VALUES (@openAIKey, @anthropicKey)"
   ).run(config);
-  db.close();
+}
+
+export function getPrimaryUser(): User | null {
+  const db = getDatabaseClient();
+
+  const user = db.prepare("SELECT * FROM users").get() as User | undefined;
+  return user ?? null;
+}
+
+export function getPrimaryUserTrack(userId: string): UserTrack | null {
+  const db = getDatabaseClient();
+
+  const track = db
+    .prepare(
+      "SELECT id, user_id as userId, language, proficiency FROM user_tracks WHERE user_id = ? LIMIT 1"
+    )
+    .get(userId) as UserTrack | undefined;
+  return track ?? null;
+}
+
+export function isSetupComplete(): boolean {
+  const db = getDatabaseClient();
+
+  const row = db
+    .prepare(
+      `SELECT EXISTS (
+        SELECT 1
+        FROM users u
+        JOIN user_tracks t ON t.user_id = u.id
+        LIMIT 1
+      ) as isComplete`
+    )
+    .get() as { isComplete: 0 | 1 };
+  return row.isComplete === 1;
+}
+
+export function runInitialSetup(input: {
+  username: string;
+  language: string;
+  proficiency: ProficiencyLevel;
+}): { user: User; track: UserTrack } {
+  const { username, language, proficiency } = input;
+  const db = getDatabaseClient();
+
+  const primaryUser =
+    (db.prepare("SELECT id FROM users LIMIT 1").get() as { id: string } | undefined) ??
+    null;
+  const userId = primaryUser?.id ?? nanoid();
+
+  const user: User = {
+    id: userId,
+    name: username,
+  };
+
+  const track: UserTrack = {
+    id: nanoid(),
+    userId,
+    language,
+    proficiency,
+  };
+
+  const writeSetup = db.transaction(() => {
+    db.prepare(
+      "INSERT INTO users (id, name) VALUES (@id, @name) ON CONFLICT(id) DO UPDATE SET name = excluded.name"
+    ).run(user);
+    db.prepare("DELETE FROM user_tracks WHERE user_id = ?").run(userId);
+    db.prepare(
+      "INSERT INTO user_tracks (id, user_id, language, proficiency) VALUES (@id, @userId, @language, @proficiency)"
+    ).run(track);
+  });
+
+  writeSetup();
+
+  return { user, track };
 }
