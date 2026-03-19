@@ -6,9 +6,14 @@ import { createSchema } from "./schema.ts";
 
 const APP_DIRECTORY = ".speekr";
 const DATABASE_FILE = "speekr.db";
+const RECORDINGS_DIRECTORY = "recordings";
 
 export const DATABASE_DIRECTORY_PATH = join(homedir(), APP_DIRECTORY);
 export const DATABASE_PATH = join(DATABASE_DIRECTORY_PATH, DATABASE_FILE);
+export const RECORDINGS_DIRECTORY_PATH = join(
+  DATABASE_DIRECTORY_PATH,
+  RECORDINGS_DIRECTORY,
+);
 
 let databaseClient: Database.Database | null = null;
 

@@ -4,6 +4,7 @@ import {
   closeDatabaseClient,
   DATABASE_PATH,
   getDatabaseClient,
+  RECORDINGS_DIRECTORY_PATH,
 } from "./client.ts";
 import type {
   Configuration,
@@ -16,6 +17,7 @@ import type {
 export function resetDatabase() {
   closeDatabaseClient();
   rmSync(DATABASE_PATH, { force: true });
+  rmSync(RECORDINGS_DIRECTORY_PATH, { force: true, recursive: true });
 }
 
 export function createUser(name: string): User {

@@ -4,9 +4,9 @@ import type { ProficiencyLevel } from "../../types/index.ts";
 import { theme } from "../theme/tokens.ts";
 
 const proficiencyOptions: Array<{ label: string; value: ProficiencyLevel }> = [
-  { label: "Beginner", value: "beginner" },
-  { label: "Intermediate", value: "intermediate" },
-  { label: "Advanced", value: "advanced" },
+  { label: "Beginner - building fundamentals", value: "beginner" },
+  { label: "Intermediate - conversational and practical", value: "intermediate" },
+  { label: "Advanced - fluent and nuanced", value: "advanced" },
 ];
 
 export function ProficiencySelect({
@@ -16,12 +16,16 @@ export function ProficiencySelect({
 }) {
   return (
     <Box flexDirection="column">
-      <Text color={theme.muted}>Use arrow keys and Enter to choose.</Text>
       <SelectInput
         items={proficiencyOptions}
         onSelect={(item) => {
           onSelect(item.value);
         }}
+        indicatorComponent={({ isSelected }) => (
+          <Text color={isSelected ? theme.accent : theme.muted}>
+            {isSelected ? "● " : "○ "}
+          </Text>
+        )}
       />
     </Box>
   );

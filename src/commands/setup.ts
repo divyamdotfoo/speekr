@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { renderCommandScreen } from "../components/layout/command-screen.tsx";
+import { renderSetupCompleteScreen } from "../components/setup/setup-complete-screen.tsx";
 import { runSetupFlow } from "./shared/run-setup-flow.tsx";
 import type { CommandRegistrar } from "./types.ts";
 
@@ -16,6 +17,9 @@ export const registerSetupCommand: CommandRegistrar = (program: Command) => {
           statusLabel: "Configuration incomplete",
           message: "Run `speekr setup` again whenever you are ready.",
         });
+        return;
       }
+
+      renderSetupCompleteScreen();
     });
 };

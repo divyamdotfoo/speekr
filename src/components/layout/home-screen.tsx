@@ -15,7 +15,7 @@ const commands = [
   { name: "setup", description: "Run guided setup" },
   { name: "record", description: "Start a new learning session" },
   { name: "list", description: "List learning sessions" },
-  { name: "reset", description: "Delete the local database" },
+  { name: "reset", description: "Delete local database and recordings" },
 ] as const;
 
 function HomeScreen() {
