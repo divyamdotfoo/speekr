@@ -2,8 +2,13 @@ import { EventEmitter } from "node:events";
 import { spawn, spawnSync, type ChildProcessByStdio } from "node:child_process";
 import { stat } from "node:fs/promises";
 import type { Readable, Writable } from "node:stream";
+import {
+  getInstallInstructionsForCurrentOs,
+  resolveSystemFfmpegPath,
+} from "./utils.ts";
 
-type StopReason = "user" | "silence_timeout";
+export type StopReason = "user" | "silence_timeout";
+
 const RECORDING_CHANNELS = process.env.SPEEKR_AUDIO_CHANNELS?.trim() || "1";
 const RECORDING_SAMPLE_RATE = process.env.SPEEKR_AUDIO_SAMPLE_RATE?.trim() || "48000";
 const RECORDING_CODEC = process.env.SPEEKR_AUDIO_CODEC?.trim() || "pcm_s16le";
@@ -32,6 +37,18 @@ export type RecordSession = {
     listener: (payload: RecordSessionEventMap[K]) => void,
   ) => void;
 };
+
+export function resolveFfmpegExecutable() {
+  return resolveSystemFfmpegPath();
+}
+
+export function getFfmpegInstallInstructions() {
+  return getInstallInstructionsForCurrentOs();
+}
+
+export function getRecordingQualitySummary() {
+  return `Quality: ${RECORDING_CODEC} @ ${RECORDING_SAMPLE_RATE}Hz, ${RECORDING_CHANNELS} channel(s).`;
+}
 
 function getInputArgs() {
   const requestedDevice = process.env.SPEEKR_AUDIO_DEVICE?.trim();

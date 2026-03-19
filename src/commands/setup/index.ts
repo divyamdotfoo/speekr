@@ -1,6 +1,17 @@
 import { CommanderError, type Command } from "commander";
-import { runSetupFlow } from "../commands/shared/run-setup-flow.tsx";
-import { isSetupComplete } from "../db/queries.ts";
+import type { CommandRegistrar } from "../types.ts";
+import { runSetupCommandFlow } from "./utils.ts";
+import { isSetupComplete } from "../../db/queries.ts";
+import { runSetupFlow } from "../../components/setup/setup-wizard.tsx";
+
+export const registerSetupCommand: CommandRegistrar = (program: Command) => {
+  return program
+    .command("setup")
+    .description("Run guided setup")
+    .action(async () => {
+      await runSetupCommandFlow();
+    });
+};
 
 const BYPASS_COMMANDS = new Set(["setup", "reset"]);
 

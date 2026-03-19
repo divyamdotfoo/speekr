@@ -1,6 +1,8 @@
 import { Box, Text, useInput } from "ink";
+import { render } from "ink";
 import TextInput from "ink-text-input";
 import { useMemo, useState } from "react";
+import { runInitialSetup } from "../../db/queries.ts";
 import type { ProficiencyLevel } from "../../types/index.ts";
 import { StatusBadge } from "../feedback/status-badge.tsx";
 import { AppFrame } from "../layout/app-frame.tsx";
@@ -14,6 +16,29 @@ export type SetupAnswers = {
   language: string;
   proficiency: ProficiencyLevel;
 };
+
+export async function runSetupFlow(commandName: string): Promise<boolean> {
+  if (!process.stdin.isTTY) {
+    return false;
+  }
+
+  return await new Promise<boolean>((resolve) => {
+    const instance = render(
+      <SetupWizard
+        commandName={commandName}
+        onCancel={() => {
+          instance.unmount();
+          resolve(false);
+        }}
+        onSubmit={async (answers: SetupAnswers) => {
+          runInitialSetup(answers);
+          instance.unmount();
+          resolve(true);
+        }}
+      />
+    );
+  });
+}
 
 export function SetupWizard({
   commandName,
@@ -63,7 +88,10 @@ export function SetupWizard({
   }
 
   return (
-    <AppFrame title="First-time setup" subtitle={`required before "${commandName}"`}>
+    <AppFrame
+      title="First-time setup"
+      subtitle={`required before "${commandName}"`}
+    >
       <StatusBadge tone="info" label={`Step ${activeStepIndex}/3`} />
       <Box marginBottom={1}>
         <Text color={theme.muted}>Press Esc or Ctrl+C to cancel setup.</Text>
@@ -96,7 +124,9 @@ export function SetupWizard({
 
       {step === "username" ? null : step === "language" ? (
         <Box flexDirection="column" marginBottom={1}>
-          <Text color={theme.brand}>What is the first language you want to practice?</Text>
+          <Text color={theme.brand}>
+            What is the first language you want to practice?
+          </Text>
           <Box>
             <Text color={theme.accent}>{">"} </Text>
             <TextInput
@@ -114,24 +144,31 @@ export function SetupWizard({
         </Box>
       ) : (
         <Box marginBottom={1}>
-          <Text color={theme.brand}>What is the first language you want to practice? </Text>
+          <Text color={theme.brand}>
+            What is the first language you want to practice?{" "}
+          </Text>
           <Text color={theme.accent}>{language.trim()}</Text>
         </Box>
       )}
 
-      {step === "username" || step === "language" ? null : step === "proficiency" ? (
+      {step === "username" || step === "language" ? null : step ===
+        "proficiency" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>
             What is your current proficiency in this language?
           </Text>
-          <Text color={theme.muted}>Use arrow keys to toggle level, then press Enter.</Text>
+          <Text color={theme.muted}>
+            Use arrow keys to toggle level, then press Enter.
+          </Text>
           <Box marginTop={1}>
             <ProficiencySelect onSelect={handleProficiencySelect} />
           </Box>
         </Box>
       ) : (
         <Box marginBottom={1}>
-          <Text color={theme.brand}>What is your current proficiency in this language? </Text>
+          <Text color={theme.brand}>
+            What is your current proficiency in this language?{" "}
+          </Text>
           <Text color={theme.accent}>{proficiency}</Text>
         </Box>
       )}
@@ -139,7 +176,9 @@ export function SetupWizard({
       {step === "saving" && isSaving ? (
         <Box>
           <Text color={theme.success}>Applying setup... </Text>
-          <Text color={theme.muted}>saving profile and preparing commands.</Text>
+          <Text color={theme.muted}>
+            saving profile and preparing commands.
+          </Text>
         </Box>
       ) : null}
     </AppFrame>

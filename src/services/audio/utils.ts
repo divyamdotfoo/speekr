@@ -1,10 +1,36 @@
-import { accessSync, constants as fsConstants } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { accessSync, constants as fsConstants } from "node:fs";
 
 type ProbeResult = {
   ok: boolean;
   path: string | null;
 };
+
+export function getInstallInstructionsForCurrentOs(): string[] {
+  switch (process.platform) {
+    case "darwin":
+      return [
+        "Install with Homebrew: brew install ffmpeg",
+        "If Homebrew is missing, install it first from https://brew.sh",
+      ];
+    case "linux":
+      return [
+        "Ubuntu/Debian: sudo apt update && sudo apt install -y ffmpeg",
+        "Fedora: sudo dnf install ffmpeg",
+        "Arch: sudo pacman -S ffmpeg",
+      ];
+    case "win32":
+      return [
+        "Chocolatey: choco install ffmpeg",
+        "Scoop: scoop install ffmpeg",
+        "Then restart terminal so PATH picks up ffmpeg",
+      ];
+    default:
+      return [
+        "Install ffmpeg for your operating system and ensure `ffmpeg` is in PATH.",
+      ];
+  }
+}
 
 function canExecuteAt(pathOrCommand: string): boolean {
   const probe = spawnSync(pathOrCommand, ["-version"], { stdio: "ignore" });
@@ -46,7 +72,11 @@ function probeCommonLocations(): ProbeResult {
           "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
           "C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe",
         ]
-      : ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"];
+      : [
+          "/opt/homebrew/bin/ffmpeg",
+          "/usr/local/bin/ffmpeg",
+          "/usr/bin/ffmpeg",
+        ];
 
   for (const candidate of candidates) {
     try {
@@ -79,30 +109,4 @@ export function resolveSystemFfmpegPath(): string | null {
   }
 
   return null;
-}
-
-export function getInstallInstructionsForCurrentOs(): string[] {
-  switch (process.platform) {
-    case "darwin":
-      return [
-        "Install with Homebrew: brew install ffmpeg",
-        "If Homebrew is missing, install it first from https://brew.sh",
-      ];
-    case "linux":
-      return [
-        "Ubuntu/Debian: sudo apt update && sudo apt install -y ffmpeg",
-        "Fedora: sudo dnf install ffmpeg",
-        "Arch: sudo pacman -S ffmpeg",
-      ];
-    case "win32":
-      return [
-        "Chocolatey: choco install ffmpeg",
-        "Scoop: scoop install ffmpeg",
-        "Then restart terminal so PATH picks up ffmpeg",
-      ];
-    default:
-      return [
-        "Install ffmpeg for your operating system and ensure `ffmpeg` is in PATH.",
-      ];
-  }
 }

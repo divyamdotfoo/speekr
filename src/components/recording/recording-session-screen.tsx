@@ -2,7 +2,7 @@ import { Box, Text, useInput } from "ink";
 import { useEffect, useMemo, useState } from "react";
 import { AppFrame } from "../layout/app-frame.tsx";
 import { theme } from "../theme/tokens.ts";
-import type { RecordSession } from "../../commands/record-session.ts";
+import type { RecordSession } from "../../services/audio/record.ts";
 
 const FRAMES = ["◴", "◷", "◶", "◵"] as const;
 
