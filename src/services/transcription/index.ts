@@ -6,46 +6,12 @@ import { fileURLToPath } from "node:url";
 import { findUpSync } from "find-up";
 import { DATABASE_DIRECTORY_PATH } from "../../db/client.ts";
 import { TRANSCRIPTION_CONFIG } from "../../constants/config.ts";
-
-export type RuntimeSetupStep =
-  | "checking"
-  | "creating_venv"
-  | "upgrading_pip"
-  | "installing_packages"
-  | "complete";
-
-export type RuntimeSetupEvent = {
-  step: RuntimeSetupStep;
-  message: string;
-  progressBar: string;
-  percent: number | null;
-  isIndeterminate?: boolean;
-  stageLabel?: string;
-  hint?: string;
-};
-
-export type TranscriptionProgressStep =
-  | "starting"
-  | "loading_model"
-  | "transcribing"
-  | "writing_output"
-  | "complete";
-
-export type TranscriptionProgressEvent = {
-  step: TranscriptionProgressStep;
-  message: string;
-  progressBar: string;
-  percent: number | null;
-  isIndeterminate?: boolean;
-  stageLabel?: string;
-  hint?: string;
-};
-
-export type TranscriptionResult = {
-  text: string;
-  language: string | null;
-  transcriptPath: string;
-};
+import type {
+  RuntimeSetupEvent,
+  TranscriptionProgressEvent,
+  TranscriptionProgressStep,
+  TranscriptionResult,
+} from "../../types/index.ts";
 
 export function getTranscriptionHelperScriptPath() {
   const packageJsonPath = findUpSync("package.json", {
@@ -76,7 +42,7 @@ export async function ensureTranscriptionRuntime(input?: {
   const pythonCommand = resolvePythonCommand();
   if (!pythonCommand) {
     throw new Error(
-      "Python 3 was not found. Install Python 3.9+ and run `speekr setup` again.",
+      "Python 3 was not found. Install Python 3.9+ and run `speekr setup` again."
     );
   }
 
@@ -134,7 +100,15 @@ export async function ensureTranscriptionRuntime(input?: {
     });
     await runCommand({
       command: VENV_PYTHON_PATH,
-      args: ["-m", "pip", "install", "--upgrade", "pip", "--progress-bar", "on"],
+      args: [
+        "-m",
+        "pip",
+        "install",
+        "--upgrade",
+        "pip",
+        "--progress-bar",
+        "on",
+      ],
       heartbeatMs: 1200,
       onLine(line) {
         onLog?.(line);
@@ -218,7 +192,13 @@ export async function transcribeRecording(input: {
   onEvent?: (event: TranscriptionProgressEvent) => void;
   onLog?: (line: string) => void;
 }) {
-  const { audioPath, model = DEFAULT_MODEL, languageCode, onEvent, onLog } = input;
+  const {
+    audioPath,
+    model = DEFAULT_MODEL,
+    languageCode,
+    onEvent,
+    onLog,
+  } = input;
   onEvent?.({
     step: "starting",
     message: "Preparing transcription process.",
@@ -231,7 +211,7 @@ export async function transcribeRecording(input: {
   const helperScript = getTranscriptionHelperScriptPath();
   if (!(await pathExists(helperScript))) {
     throw new Error(
-      "Transcription helper script is missing from the package assets.",
+      "Transcription helper script is missing from the package assets."
     );
   }
 
@@ -321,7 +301,8 @@ export async function transcribeRecording(input: {
         message: progress.message,
         progressBar: buildProgressBar(progress.percent),
         percent: progress.percent,
-        isIndeterminate: progress.percent === null || progress.step === "loading_model",
+        isIndeterminate:
+          progress.percent === null || progress.step === "loading_model",
         stageLabel: getTranscriptionStageLabel(progress.step),
         hint: progress.step === "loading_model" ? loadingHint : undefined,
       });
@@ -338,7 +319,9 @@ export async function transcribeRecording(input: {
     parsed = JSON.parse(rawOutput) as typeof parsed;
   } catch (error) {
     throw new Error(
-      `Transcription process returned invalid JSON output. ${(error as Error).message}`,
+      `Transcription process returned invalid JSON output. ${
+        (error as Error).message
+      }`
     );
   }
 
@@ -375,8 +358,14 @@ export async function transcribeRecording(input: {
 }
 
 const TRANSCRIPTION_RUNTIME_DIR = join(DATABASE_DIRECTORY_PATH, "python-venv");
-const TRANSCRIPTION_MODELS_DIRECTORY = join(DATABASE_DIRECTORY_PATH, "transcription-models");
-const TRANSCRIPTION_RUNTIME_MARKER_PATH = join(TRANSCRIPTION_RUNTIME_DIR, ".runtime-ready");
+const TRANSCRIPTION_MODELS_DIRECTORY = join(
+  DATABASE_DIRECTORY_PATH,
+  "transcription-models"
+);
+const TRANSCRIPTION_RUNTIME_MARKER_PATH = join(
+  TRANSCRIPTION_RUNTIME_DIR,
+  ".runtime-ready"
+);
 const VENV_PYTHON_PATH =
   process.platform === "win32"
     ? join(TRANSCRIPTION_RUNTIME_DIR, "Scripts", "python.exe")
@@ -384,7 +373,8 @@ const VENV_PYTHON_PATH =
 const DEFAULT_MODEL = TRANSCRIPTION_CONFIG.defaultModel;
 
 function resolvePythonCommand() {
-  const commands = process.platform === "win32" ? ["python", "py"] : ["python3", "python"];
+  const commands =
+    process.platform === "win32" ? ["python", "py"] : ["python3", "python"];
   for (const command of commands) {
     const version = spawnSync(command, ["--version"], {
       stdio: ["ignore", "pipe", "pipe"],
@@ -477,8 +467,10 @@ async function runCommand(input: {
       if (code !== 0) {
         reject(
           new Error(
-            `Command failed: ${input.command} ${input.args.join(" ")}\n${stderrAll.trim()}`,
-          ),
+            `Command failed: ${input.command} ${input.args.join(
+              " "
+            )}\n${stderrAll.trim()}`
+          )
         );
         return;
       }
@@ -488,7 +480,10 @@ async function runCommand(input: {
 }
 
 function getModelReadyMarkerPath(model: string) {
-  return join(TRANSCRIPTION_MODELS_DIRECTORY, `${sanitizeFileName(model)}.ready`);
+  return join(
+    TRANSCRIPTION_MODELS_DIRECTORY,
+    `${sanitizeFileName(model)}.ready`
+  );
 }
 
 function sanitizeFileName(value: string) {
@@ -540,7 +535,9 @@ function parseHelperProgressLine(line: string): {
   };
 }
 
-function mapProgressStep(stepRaw: string | undefined): TranscriptionProgressStep {
+function mapProgressStep(
+  stepRaw: string | undefined
+): TranscriptionProgressStep {
   switch (stepRaw) {
     case "loading_model":
       return "loading_model";

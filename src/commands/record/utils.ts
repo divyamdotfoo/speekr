@@ -19,9 +19,9 @@ import {
   getFfmpegInstallInstructions,
   getRecordingQualitySummary,
   resolveFfmpegExecutable as resolveAudioFfmpegExecutable,
-  type RecordSessionResult,
-} from "../../services/audio/record.ts";
+} from "../../services/recording/index.ts";
 import { RECORDINGS_DIRECTORY_PATH } from "../../db/client.ts";
+import type { RecordSessionResult } from "../../types/index.ts";
 
 export function resolveFfmpegExecutable() {
   return resolveAudioFfmpegExecutable();

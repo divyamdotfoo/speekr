@@ -2,11 +2,11 @@ import { Box, Text, render } from "ink";
 import { useEffect, useState } from "react";
 import { AppFrame } from "../layout/app-frame.tsx";
 import { theme } from "../theme/tokens.ts";
-import {
-  transcribeRecording,
-  type TranscriptionProgressEvent,
-  type TranscriptionResult,
-} from "../../services/transcription/index.ts";
+import { transcribeRecording } from "../../services/transcription/index.ts";
+import type {
+  TranscriptionProgressEvent,
+  TranscriptionResult,
+} from "../../types/index.ts";
 
 export async function runTranscriptionProgressScreen(input: {
   audioPath: string;
@@ -32,7 +32,7 @@ export async function runTranscriptionProgressScreen(input: {
           instance.unmount();
           reject(error);
         }}
-      />,
+      />
     );
   });
 }
@@ -119,9 +119,12 @@ export function TranscriptionProgressScreen(input: {
     <AppFrame title="Transcribing recording" subtitle="record">
       <Box marginBottom={1}>
         <Text color={theme.success}>{displayBar}</Text>
-        <Text color={theme.muted}>  </Text>
+        <Text color={theme.muted}> </Text>
         <Text color={theme.text}>{event.stageLabel ?? "Working"}</Text>
-        <Text color={theme.muted}>  ·  Elapsed: {formatClock(elapsedSeconds)}</Text>
+        <Text color={theme.muted}>
+          {" "}
+          · Elapsed: {formatClock(elapsedSeconds)}
+        </Text>
       </Box>
 
       <Box marginBottom={1}>
@@ -135,9 +138,16 @@ export function TranscriptionProgressScreen(input: {
         {checklist.map((item) => (
           <Text
             key={item.id}
-            color={item.state === "done" ? theme.success : item.state === "active" ? theme.text : theme.muted}
+            color={
+              item.state === "done"
+                ? theme.success
+                : item.state === "active"
+                ? theme.text
+                : theme.muted
+            }
           >
-            {item.state === "done" ? "✓" : item.state === "active" ? "›" : "○"} {item.label}
+            {item.state === "done" ? "✓" : item.state === "active" ? "›" : "○"}{" "}
+            {item.label}
           </Text>
         ))}
       </Box>
@@ -150,7 +160,6 @@ export function TranscriptionProgressScreen(input: {
           </Text>
         ))}
       </Box>
-
     </AppFrame>
   );
 }

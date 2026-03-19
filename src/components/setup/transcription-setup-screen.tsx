@@ -2,10 +2,8 @@ import { Box, Text, render } from "ink";
 import { useEffect, useState } from "react";
 import { AppFrame } from "../layout/app-frame.tsx";
 import { theme } from "../theme/tokens.ts";
-import {
-  ensureTranscriptionRuntime,
-  type RuntimeSetupEvent,
-} from "../../services/transcription/index.ts";
+import { ensureTranscriptionRuntime } from "../../services/transcription/index.ts";
+import type { RuntimeSetupEvent } from "../../types/index.ts";
 
 export async function runTranscriptionSetupScreen() {
   if (!process.stdin.isTTY) {
@@ -24,7 +22,7 @@ export async function runTranscriptionSetupScreen() {
           instance.unmount();
           reject(error);
         }}
-      />,
+      />
     );
   });
 }
@@ -107,9 +105,14 @@ export function TranscriptionSetupScreen(input: {
     <AppFrame title="Preparing transcription runtime" subtitle="setup">
       <Box marginBottom={1}>
         <Text color={theme.success}>{displayBar}</Text>
-        <Text color={theme.muted}>  </Text>
-        <Text color={theme.text}>{event.stageLabel ?? "Preparing runtime"}</Text>
-        <Text color={theme.muted}>  ·  Elapsed: {formatClock(elapsedSeconds)}</Text>
+        <Text color={theme.muted}> </Text>
+        <Text color={theme.text}>
+          {event.stageLabel ?? "Preparing runtime"}
+        </Text>
+        <Text color={theme.muted}>
+          {" "}
+          · Elapsed: {formatClock(elapsedSeconds)}
+        </Text>
       </Box>
 
       <Box marginBottom={1}>
@@ -121,7 +124,8 @@ export function TranscriptionSetupScreen(input: {
 
       <Box marginBottom={1} flexDirection="column">
         <Text color={theme.muted}>
-          We need Python and speech dependencies to transcribe audio locally on your device.
+          We need Python and speech dependencies to transcribe audio locally on
+          your device.
         </Text>
       </Box>
 
@@ -129,9 +133,16 @@ export function TranscriptionSetupScreen(input: {
         {checklist.map((item) => (
           <Text
             key={item.id}
-            color={item.state === "done" ? theme.success : item.state === "active" ? theme.text : theme.muted}
+            color={
+              item.state === "done"
+                ? theme.success
+                : item.state === "active"
+                ? theme.text
+                : theme.muted
+            }
           >
-            {item.state === "done" ? "✓" : item.state === "active" ? "›" : "○"} {item.label}
+            {item.state === "done" ? "✓" : item.state === "active" ? "›" : "○"}{" "}
+            {item.label}
           </Text>
         ))}
       </Box>
@@ -144,7 +155,6 @@ export function TranscriptionSetupScreen(input: {
           </Text>
         ))}
       </Box>
-
     </AppFrame>
   );
 }

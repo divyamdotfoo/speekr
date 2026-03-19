@@ -12,7 +12,7 @@ import { ProficiencySelect } from "./proficiency-select.tsx";
 
 type SetupStep = "username" | "language" | "proficiency" | "saving";
 
-export type SetupAnswers = {
+type SetupAnswers = {
   username: string;
   languageId: string;
   proficiency: ProficiencyLevel;
@@ -44,7 +44,7 @@ export async function runSetupFlow(commandName: string): Promise<boolean> {
   });
 }
 
-export function SetupWizard({
+function SetupWizard({
   commandName,
   languages,
   onSubmit,
