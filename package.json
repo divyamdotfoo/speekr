@@ -7,16 +7,22 @@
   "bin": {
     "speekr": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "assets"
+  ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
-    "dev": "bun src/index.ts"
+    "dev": "bun src/index.ts",
+    "reset-env": "rm -rf ~/.speekr && rm -rf ~/.cache/whisper && rm -rf ~/.cache/huggingface"
   },
   "author": "Divyam gupta",
   "dependencies": {
     "better-sqlite3": "^12.8.0",
     "commander": "^14.0.3",
+    "find-up": "^8.0.0",
     "ink": "^6.8.0",
     "ink-select-input": "^6.2.0",
     "ink-text-input": "^6.0.0",

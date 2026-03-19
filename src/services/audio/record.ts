@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { spawn, spawnSync, type ChildProcessByStdio } from "node:child_process";
 import { stat } from "node:fs/promises";
 import type { Readable, Writable } from "node:stream";
+import { AUDIO_RECORDING_CONFIG } from "../../constants/config.ts";
 import {
   getInstallInstructionsForCurrentOs,
   resolveSystemFfmpegPath,
@@ -9,10 +10,10 @@ import {
 
 export type StopReason = "user" | "silence_timeout";
 
-const RECORDING_CHANNELS = process.env.SPEEKR_AUDIO_CHANNELS?.trim() || "1";
-const RECORDING_SAMPLE_RATE = process.env.SPEEKR_AUDIO_SAMPLE_RATE?.trim() || "48000";
-const RECORDING_CODEC = process.env.SPEEKR_AUDIO_CODEC?.trim() || "pcm_s16le";
-const RECORDING_FILTER = "silencedetect=noise=-35dB:d=1";
+const RECORDING_CHANNELS = AUDIO_RECORDING_CONFIG.channels;
+const RECORDING_SAMPLE_RATE = AUDIO_RECORDING_CONFIG.sampleRate;
+const RECORDING_CODEC = AUDIO_RECORDING_CONFIG.codec;
+const RECORDING_FILTER = AUDIO_RECORDING_CONFIG.silenceFilter;
 
 export type RecordSessionResult = {
   outputPath: string;
@@ -51,7 +52,7 @@ export function getRecordingQualitySummary() {
 }
 
 function getInputArgs() {
-  const requestedDevice = process.env.SPEEKR_AUDIO_DEVICE?.trim();
+  const requestedDevice = AUDIO_RECORDING_CONFIG.inputDevice;
 
   switch (process.platform) {
     case "darwin":
@@ -257,7 +258,7 @@ export function createRecordSession(input: {
         if (looksLikeInputDeviceIssue(logs)) {
           reject(
             new Error(
-              "Audio input device could not be opened. Check your default microphone or set SPEEKR_AUDIO_DEVICE and retry.",
+              "Audio input device could not be opened. Check your default microphone and retry.",
             ),
           );
           return;
@@ -289,7 +290,7 @@ export function createRecordSession(input: {
       if (volume.shouldRejectAsSilent) {
         reject(
           new Error(
-            `Captured audio is near-silent (max volume: ${volume.maxVolumeDb} dB). Check mic permissions, default input device, or set SPEEKR_AUDIO_DEVICE.`,
+            `Captured audio is near-silent (max volume: ${volume.maxVolumeDb} dB). Check mic permissions and default input device.`,
           ),
         );
         return;

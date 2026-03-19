@@ -34,7 +34,8 @@ export function createSchema(db: Database.Database) {
 
     CREATE TABLE IF NOT EXISTS configuration (
       openAIKey TEXT,
-      anthropicKey TEXT
+      anthropicKey TEXT,
+      transcriptionChoice TEXT CHECK (transcriptionChoice IN ('local', 'https') OR transcriptionChoice IS NULL)
     );
   `);
 

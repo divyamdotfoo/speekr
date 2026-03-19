@@ -10,6 +10,9 @@ export function renderSetupCompleteScreen() {
         <Text color={theme.muted}>  </Text>
         <Text color={theme.text}>You are ready to start practicing.</Text>
       </Box>
+      <Text color={theme.muted}>
+        You will choose local or HTTPS transcription the first time you run `speekr record`.
+      </Text>
       <Text color={theme.muted}>Next command:</Text>
       <Text color={theme.accent}>speekr record</Text>
     </AppFrame>,

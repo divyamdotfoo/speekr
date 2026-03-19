@@ -25,6 +25,8 @@ export type SupportedLanguage = {
 export type Configuration = {
   openAIKey: string | null;
   anthropicKey: string | null;
+  transcriptionChoice: TranscriptionChoice;
 };
 
 export type ProficiencyLevel = "beginner" | "intermediate" | "advanced";
+export type TranscriptionChoice = "local" | "https" | null;

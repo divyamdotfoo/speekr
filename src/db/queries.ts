@@ -11,6 +11,7 @@ import type {
   Configuration,
   ProficiencyLevel,
   SupportedLanguage,
+  TranscriptionChoice,
   User,
   UserSession,
   UserTrack,
@@ -107,8 +108,39 @@ export function saveConfiguration(config: Configuration) {
 
   db.exec("DELETE FROM configuration");
   db.prepare(
-    "INSERT INTO configuration (openAIKey, anthropicKey) VALUES (@openAIKey, @anthropicKey)"
+    "INSERT INTO configuration (openAIKey, anthropicKey, transcriptionChoice) VALUES (@openAIKey, @anthropicKey, @transcriptionChoice)"
   ).run(config);
+}
+
+export function getTranscriptionChoice(): TranscriptionChoice {
+  const db = getDatabaseClient();
+  const row = db
+    .prepare("SELECT transcriptionChoice FROM configuration LIMIT 1")
+    .get() as { transcriptionChoice: TranscriptionChoice } | undefined;
+  return row?.transcriptionChoice ?? null;
+}
+
+export function setTranscriptionChoice(choice: Exclude<TranscriptionChoice, null>) {
+  const db = getDatabaseClient();
+  const existingRow = db
+    .prepare(
+      "SELECT rowid, openAIKey, anthropicKey FROM configuration ORDER BY rowid ASC LIMIT 1",
+    )
+    .get() as
+    | { rowid: number; openAIKey: string | null; anthropicKey: string | null }
+    | undefined;
+
+  if (!existingRow) {
+    db.prepare(
+      "INSERT INTO configuration (openAIKey, anthropicKey, transcriptionChoice) VALUES (NULL, NULL, ?)",
+    ).run(choice);
+    return;
+  }
+
+  db.prepare(
+    "UPDATE configuration SET openAIKey = ?, anthropicKey = ?, transcriptionChoice = ? WHERE rowid = ?",
+  ).run(existingRow.openAIKey, existingRow.anthropicKey, choice, existingRow.rowid);
+  db.prepare("DELETE FROM configuration WHERE rowid != ?").run(existingRow.rowid);
 }
 
 export function getPrimaryUser(): User | null {
