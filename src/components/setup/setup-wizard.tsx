@@ -2,18 +2,19 @@ import { Box, Text, useInput } from "ink";
 import { render } from "ink";
 import TextInput from "ink-text-input";
 import { useMemo, useState } from "react";
-import { runInitialSetup } from "../../db/queries.ts";
-import type { ProficiencyLevel } from "../../types/index.ts";
+import { listSupportedLanguages, runInitialSetup } from "../../db/queries.ts";
+import type { ProficiencyLevel, SupportedLanguage } from "../../types/index.ts";
 import { StatusBadge } from "../feedback/status-badge.tsx";
 import { AppFrame } from "../layout/app-frame.tsx";
 import { theme } from "../theme/tokens.ts";
+import { LanguageSelect } from "./language-select.tsx";
 import { ProficiencySelect } from "./proficiency-select.tsx";
 
 type SetupStep = "username" | "language" | "proficiency" | "saving";
 
 export type SetupAnswers = {
   username: string;
-  language: string;
+  languageId: string;
   proficiency: ProficiencyLevel;
 };
 
@@ -22,10 +23,13 @@ export async function runSetupFlow(commandName: string): Promise<boolean> {
     return false;
   }
 
+  const languages = listSupportedLanguages();
+
   return await new Promise<boolean>((resolve) => {
     const instance = render(
       <SetupWizard
         commandName={commandName}
+        languages={languages}
         onCancel={() => {
           instance.unmount();
           resolve(false);
@@ -42,16 +46,20 @@ export async function runSetupFlow(commandName: string): Promise<boolean> {
 
 export function SetupWizard({
   commandName,
+  languages,
   onSubmit,
   onCancel,
 }: {
   commandName: string;
+  languages: SupportedLanguage[];
   onSubmit: (answers: SetupAnswers) => Promise<void>;
   onCancel: () => void;
 }) {
   const [step, setStep] = useState<SetupStep>("username");
   const [username, setUsername] = useState("");
-  const [language, setLanguage] = useState("");
+  const [language, setLanguage] = useState<
+    (typeof languages)[number] | null
+  >(null);
   const [proficiency, setProficiency] = useState<ProficiencyLevel | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -79,9 +87,12 @@ export function SetupWizard({
     setProficiency(value);
     setIsSaving(true);
     setStep("saving");
+    if (!language) {
+      return;
+    }
     await onSubmit({
       username: username.trim(),
-      language: language.trim(),
+      languageId: language.id,
       proficiency: value,
     });
     setIsSaving(false);
@@ -127,16 +138,11 @@ export function SetupWizard({
           <Text color={theme.brand}>
             What is the first language you want to practice?
           </Text>
-          <Box>
-            <Text color={theme.accent}>{">"} </Text>
-            <TextInput
-              value={language}
-              onChange={setLanguage}
-              onSubmit={(value) => {
-                if (!value.trim()) {
-                  return;
-                }
-                setLanguage(value.trim());
+          <Box marginTop={1}>
+            <LanguageSelect
+              languages={languages}
+              onSelect={(value) => {
+                setLanguage(value);
                 setStep("proficiency");
               }}
             />
@@ -147,7 +153,7 @@ export function SetupWizard({
           <Text color={theme.brand}>
             What is the first language you want to practice?{" "}
           </Text>
-          <Text color={theme.accent}>{language.trim()}</Text>
+          <Text color={theme.accent}>{language?.label}</Text>
         </Box>
       )}
 
@@ -158,7 +164,7 @@ export function SetupWizard({
             What is your current proficiency in this language?
           </Text>
           <Text color={theme.muted}>
-            Use arrow keys to toggle level, then press Enter.
+            Selected language: {language?.label} ({language?.code})
           </Text>
           <Box marginTop={1}>
             <ProficiencySelect onSelect={handleProficiencySelect} />

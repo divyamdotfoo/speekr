@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import { rmSync } from "node:fs";
+import { SUPPORTED_LANGUAGES } from "../constants/supported-languages.ts";
 import {
   closeDatabaseClient,
   DATABASE_PATH,
@@ -9,10 +10,31 @@ import {
 import type {
   Configuration,
   ProficiencyLevel,
+  SupportedLanguage,
   User,
   UserSession,
   UserTrack,
 } from "../types/index.ts";
+
+export function listSupportedLanguages(): SupportedLanguage[] {
+  const db = getDatabaseClient();
+  const rows = db
+    .prepare("SELECT id, code, label FROM supported_languages")
+    .all() as SupportedLanguage[];
+
+  const rankByCode = new Map(
+    SUPPORTED_LANGUAGES.map((language, index) => [language.code, index]),
+  );
+
+  return rows.sort((a, b) => {
+    const rankA = rankByCode.get(a.code) ?? Number.MAX_SAFE_INTEGER;
+    const rankB = rankByCode.get(b.code) ?? Number.MAX_SAFE_INTEGER;
+    if (rankA !== rankB) {
+      return rankA - rankB;
+    }
+    return a.label.localeCompare(b.label);
+  });
+}
 
 export function resetDatabase() {
   closeDatabaseClient();
@@ -35,22 +57,27 @@ export function createUser(name: string): User {
 
 export function createUserTrack(input: {
   userId: string;
-  language: string;
+  languageId: string;
   proficiency: ProficiencyLevel;
 }): UserTrack {
-  const { userId, language, proficiency } = input;
+  const { userId, languageId, proficiency } = input;
   const db = getDatabaseClient();
 
   const track: UserTrack = {
     id: nanoid(),
     userId,
-    language,
+    language: languageId,
     proficiency,
   };
 
   db.prepare(
-    "INSERT INTO user_tracks (id, user_id, language, proficiency) VALUES (@id, @userId, @language, @proficiency)"
-  ).run(track);
+    "INSERT INTO user_tracks (id, user_id, language_id, proficiency) VALUES (@id, @userId, @languageId, @proficiency)"
+  ).run({
+    id: track.id,
+    userId,
+    languageId,
+    proficiency,
+  });
 
   return track;
 }
@@ -96,7 +123,15 @@ export function getPrimaryUserTrack(userId: string): UserTrack | null {
 
   const track = db
     .prepare(
-      "SELECT id, user_id as userId, language, proficiency FROM user_tracks WHERE user_id = ? LIMIT 1"
+      `SELECT
+        t.id,
+        t.user_id as userId,
+        l.code as language,
+        t.proficiency
+      FROM user_tracks t
+      JOIN supported_languages l ON l.id = t.language_id
+      WHERE t.user_id = ?
+      LIMIT 1`
     )
     .get(userId) as UserTrack | undefined;
   return track ?? null;
@@ -120,10 +155,10 @@ export function isSetupComplete(): boolean {
 
 export function runInitialSetup(input: {
   username: string;
-  language: string;
+  languageId: string;
   proficiency: ProficiencyLevel;
 }): { user: User; track: UserTrack } {
-  const { username, language, proficiency } = input;
+  const { username, languageId, proficiency } = input;
   const db = getDatabaseClient();
 
   const primaryUser =
@@ -139,7 +174,7 @@ export function runInitialSetup(input: {
   const track: UserTrack = {
     id: nanoid(),
     userId,
-    language,
+    language: languageId,
     proficiency,
   };
 
@@ -149,8 +184,13 @@ export function runInitialSetup(input: {
     ).run(user);
     db.prepare("DELETE FROM user_tracks WHERE user_id = ?").run(userId);
     db.prepare(
-      "INSERT INTO user_tracks (id, user_id, language, proficiency) VALUES (@id, @userId, @language, @proficiency)"
-    ).run(track);
+      "INSERT INTO user_tracks (id, user_id, language_id, proficiency) VALUES (@id, @userId, @languageId, @proficiency)"
+    ).run({
+      id: track.id,
+      userId,
+      languageId,
+      proficiency,
+    });
   });
 
   writeSetup();

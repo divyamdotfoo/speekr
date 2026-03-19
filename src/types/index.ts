@@ -16,6 +16,12 @@ export type UserSession = {
   userTrackId: string;
 };
 
+export type SupportedLanguage = {
+  id: string;
+  code: string;
+  label: string;
+};
+
 export type Configuration = {
   openAIKey: string | null;
   anthropicKey: string | null;
