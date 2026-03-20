@@ -1,6 +1,18 @@
 import type { SupportedLanguage } from "../types/index.ts";
 
-export const SUPPORTED_LANGUAGES: Array<Pick<SupportedLanguage, "code" | "label">> = [
+export const TRANSCRIPTION_DEFAULT_MODEL = "base";
+
+export const AUDIO_RECORDING_CONFIG = {
+  channels: "1",
+  sampleRate: "48000",
+  codec: "pcm_s16le",
+  silenceFilter: "silencedetect=noise=-35dB:d=1",
+  inputDevice: null as string | null,
+} as const;
+
+export const SUPPORTED_LANGUAGES: Array<
+  Pick<SupportedLanguage, "code" | "label">
+> = [
   { code: "en", label: "English" },
   { code: "es", label: "Spanish" },
   { code: "fr", label: "French" },

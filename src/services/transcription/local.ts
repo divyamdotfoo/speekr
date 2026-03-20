@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findUpSync } from "find-up";
 import { DATABASE_DIRECTORY_PATH } from "../../db/client.ts";
-import { TRANSCRIPTION_CONFIG } from "../../constants/config.ts";
+import { TRANSCRIPTION_DEFAULT_MODEL } from "../../constants/index.ts";
 import type {
   RuntimeSetupEvent,
   TranscriptionProgressEvent,
@@ -370,7 +370,7 @@ const VENV_PYTHON_PATH =
   process.platform === "win32"
     ? join(TRANSCRIPTION_RUNTIME_DIR, "Scripts", "python.exe")
     : join(TRANSCRIPTION_RUNTIME_DIR, "bin", "python");
-const DEFAULT_MODEL = TRANSCRIPTION_CONFIG.defaultModel;
+const DEFAULT_MODEL = TRANSCRIPTION_DEFAULT_MODEL;
 
 function resolvePythonCommand() {
   const commands =

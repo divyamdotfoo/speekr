@@ -76,6 +76,9 @@ function SetupWizard({
   const [proficiency, setProficiency] = useState<ProficiencyLevel | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<AIProvider | null>(null);
   const [providerApiKeyInput, setProviderApiKeyInput] = useState("");
+  const [providerApiKeyError, setProviderApiKeyError] = useState<string | null>(
+    null
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   const activeStepIndex = useMemo(() => {
@@ -109,10 +112,18 @@ function SetupWizard({
 
   function handleProviderSelect(value: AIProvider) {
     setSelectedProvider(value);
+    setProviderApiKeyError(null);
     setStep("api_key");
   }
 
-  async function handleProviderApiKeySubmit(value: string) {
+  async function handleProviderApiKeySubmit() {
+    const trimmedValue = providerApiKeyInput.trim();
+    if (trimmedValue.length < 10) {
+      setProviderApiKeyError("Please enter a valid API key.");
+      return;
+    }
+
+    setProviderApiKeyError(null);
     setIsSaving(true);
     setStep("saving");
     if (!language || !proficiency || !selectedProvider) {
@@ -124,7 +135,7 @@ function SetupWizard({
       languageId: language.id,
       proficiency,
       defaultModel: selectedProvider,
-      apiKey: value.trim() ? value.trim() : null,
+      apiKey: trimmedValue,
     });
     setIsSaving(false);
   }
@@ -255,10 +266,18 @@ function SetupWizard({
             <TextInput
               value={providerApiKeyInput}
               mask="*"
-              onChange={setProviderApiKeyInput}
+              onChange={(value) => {
+                setProviderApiKeyInput(value);
+                if (providerApiKeyError) {
+                  setProviderApiKeyError(null);
+                }
+              }}
               onSubmit={handleProviderApiKeySubmit}
             />
           </Box>
+          {providerApiKeyError ? (
+            <Text color={theme.danger}>{providerApiKeyError}</Text>
+          ) : null}
         </Box>
       ) : step === "saving" ? (
         <Box marginBottom={1}>

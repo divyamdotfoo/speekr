@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { accessSync, constants as fsConstants } from "node:fs";
-import { AUDIO_RECORDING_CONFIG } from "../../constants/config.ts";
+import { AUDIO_RECORDING_CONFIG } from "../../constants/index.ts";
 
 type ProbeResult = {
   ok: boolean;

@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { nanoid } from "nanoid";
-import { SUPPORTED_LANGUAGES } from "../constants/supported-languages.ts";
+import { SUPPORTED_LANGUAGES } from "../constants/index.ts";
 
 export function createSchema(db: Database.Database) {
   db.exec(`

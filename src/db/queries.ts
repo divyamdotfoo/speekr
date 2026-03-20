@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 import { rmSync } from "node:fs";
-import { SUPPORTED_LANGUAGES } from "../constants/supported-languages.ts";
+import { SUPPORTED_LANGUAGES } from "../constants/index.ts";
 import {
   closeDatabaseClient,
   DATABASE_PATH,
@@ -115,18 +115,7 @@ export function saveConfiguration(config: Configuration) {
 
 export function getConfiguration(): Configuration {
   const db = getDatabaseClient();
-  const row = db
-    .prepare(
-      "SELECT openAIKey, anthropicKey, defaultModel, transcriptionChoice FROM configuration ORDER BY rowid ASC LIMIT 1"
-    )
-    .get() as Configuration | undefined;
-
-  return {
-    openAIKey: row?.openAIKey ?? null,
-    anthropicKey: row?.anthropicKey ?? null,
-    defaultModel: row?.defaultModel ?? null,
-    transcriptionChoice: row?.transcriptionChoice ?? null,
-  };
+  return toConfiguration(readConfigurationRow(db));
 }
 
 export function getTranscriptionChoice(): TranscriptionChoice {
@@ -147,25 +136,7 @@ export function getOpenAIKey(): string | null {
 
 export function setTranscriptionChoice(choice: Exclude<TranscriptionChoice, null>) {
   const db = getDatabaseClient();
-  const existingRow = db
-    .prepare(
-      "SELECT rowid, openAIKey, anthropicKey, defaultModel FROM configuration ORDER BY rowid ASC LIMIT 1",
-    )
-    .get() as
-    | {
-        rowid: number;
-        openAIKey: string | null;
-        anthropicKey: string | null;
-        defaultModel: AIProvider | null;
-      }
-    | undefined;
-
-  if (!existingRow) {
-    db.prepare(
-      "INSERT INTO configuration (openAIKey, anthropicKey, defaultModel, transcriptionChoice) VALUES (NULL, NULL, NULL, ?)",
-    ).run(choice);
-    return;
-  }
+  const existingRow = ensureConfigurationRow(db);
 
   db.prepare(
     "UPDATE configuration SET openAIKey = ?, anthropicKey = ?, defaultModel = ?, transcriptionChoice = ? WHERE rowid = ?",
@@ -231,10 +202,7 @@ export function runInitialSetup(input: {
   const { username, languageId, proficiency, defaultModel, apiKey } = input;
   const db = getDatabaseClient();
 
-  const primaryUser =
-    (db.prepare("SELECT id FROM users LIMIT 1").get() as { id: string } | undefined) ??
-    null;
-  const userId = primaryUser?.id ?? nanoid();
+  const userId = getPrimaryUserId(db) ?? nanoid();
 
   const user: User = {
     id: userId,
@@ -262,28 +230,7 @@ export function runInitialSetup(input: {
       proficiency,
     });
 
-    const existingConfig = db
-      .prepare(
-        "SELECT rowid, openAIKey, anthropicKey, defaultModel, transcriptionChoice FROM configuration ORDER BY rowid ASC LIMIT 1"
-      )
-      .get() as
-      | {
-          rowid: number;
-          openAIKey: string | null;
-          anthropicKey: string | null;
-          defaultModel: AIProvider | null;
-          transcriptionChoice: TranscriptionChoice;
-        }
-      | undefined;
-
-    if (!existingConfig) {
-      const nextOpenAIKey = defaultModel === "openai" ? apiKey : null;
-      const nextAnthropicKey = defaultModel === "anthropic" ? apiKey : null;
-      db.prepare(
-        "INSERT INTO configuration (openAIKey, anthropicKey, defaultModel, transcriptionChoice) VALUES (?, ?, ?, NULL)"
-      ).run(nextOpenAIKey, nextAnthropicKey, defaultModel);
-      return;
-    }
+    const existingConfig = ensureConfigurationRow(db);
 
     const nextOpenAIKey =
       defaultModel === "openai" ? apiKey : existingConfig.openAIKey;
@@ -308,4 +255,54 @@ export function runInitialSetup(input: {
   writeSetup();
 
   return { user, track };
+}
+
+type ConfigRow = {
+  rowid: number;
+  openAIKey: string | null;
+  anthropicKey: string | null;
+  defaultModel: AIProvider | null;
+  transcriptionChoice: TranscriptionChoice;
+};
+
+function toConfiguration(row: ConfigRow | null): Configuration {
+  return {
+    openAIKey: row?.openAIKey ?? null,
+    anthropicKey: row?.anthropicKey ?? null,
+    defaultModel: row?.defaultModel ?? null,
+    transcriptionChoice: row?.transcriptionChoice ?? null,
+  };
+}
+
+function readConfigurationRow(db: ReturnType<typeof getDatabaseClient>): ConfigRow | null {
+  const row = db
+    .prepare(
+      "SELECT rowid, openAIKey, anthropicKey, defaultModel, transcriptionChoice FROM configuration ORDER BY rowid ASC LIMIT 1"
+    )
+    .get() as ConfigRow | undefined;
+  return row ?? null;
+}
+
+function ensureConfigurationRow(db: ReturnType<typeof getDatabaseClient>): ConfigRow {
+  const existing = readConfigurationRow(db);
+  if (existing) {
+    return existing;
+  }
+
+  db.prepare(
+    "INSERT INTO configuration (openAIKey, anthropicKey, defaultModel, transcriptionChoice) VALUES (NULL, NULL, NULL, NULL)"
+  ).run();
+
+  const inserted = readConfigurationRow(db);
+  if (!inserted) {
+    throw new Error("Failed to initialize configuration row.");
+  }
+  return inserted;
+}
+
+function getPrimaryUserId(db: ReturnType<typeof getDatabaseClient>) {
+  const row = db.prepare("SELECT id FROM users LIMIT 1").get() as
+    | { id: string }
+    | undefined;
+  return row?.id ?? null;
 }

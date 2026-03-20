@@ -1,25 +1,26 @@
 import { Box, Text, render, useInput } from "ink";
 import SelectInput from "ink-select-input";
-import { TRANSCRIPTION_CHOICES, TRANSCRIPTION_CONFIG } from "../../constants/config.ts";
 import type { TranscriptionChoice } from "../../types/index.ts";
 import { AppFrame } from "../layout/app-frame.tsx";
 import { theme } from "../theme/tokens.ts";
 
 export async function runTranscriptionChoiceScreen() {
-  return await new Promise<Exclude<TranscriptionChoice, null> | null>((resolve) => {
-    const instance = render(
-      <TranscriptionChoiceScreen
-        onSelect={(choice) => {
-          instance.unmount();
-          resolve(choice);
-        }}
-        onCancel={() => {
-          instance.unmount();
-          resolve(null);
-        }}
-      />,
-    );
-  });
+  return await new Promise<Exclude<TranscriptionChoice, null> | null>(
+    (resolve) => {
+      const instance = render(
+        <TranscriptionChoiceScreen
+          onSelect={(choice) => {
+            instance.unmount();
+            resolve(choice);
+          }}
+          onCancel={() => {
+            instance.unmount();
+            resolve(null);
+          }}
+        />
+      );
+    }
+  );
 }
 
 function TranscriptionChoiceScreen(input: {
@@ -36,13 +37,13 @@ function TranscriptionChoiceScreen(input: {
     <AppFrame title="Choose transcription mode" subtitle="record">
       <Box marginBottom={1} flexDirection="column">
         <Text color={theme.muted}>
-          Choose how Speekr should transcribe your recordings before we start capture.
+          Choose how Speekr should transcribe your recordings before we start
+          capture.
         </Text>
       </Box>
       <Box marginBottom={1} flexDirection="column">
         <Text color={theme.warning}>
-          Recommended: local mode downloads the {TRANSCRIPTION_CONFIG.localModelName} model ({TRANSCRIPTION_CONFIG.localModelDownloadSizeLabel})
-          and first setup can take {TRANSCRIPTION_CONFIG.firstRunDurationLabel}.
+          Recommended: Use local mode for free, private, offline transcription.
         </Text>
       </Box>
 
@@ -55,15 +56,25 @@ function TranscriptionChoiceScreen(input: {
           input.onSelect(item.value);
         }}
         indicatorComponent={({ isSelected }) => (
-          <Text color={isSelected ? theme.accent : theme.muted}>{isSelected ? "● " : "○ "}</Text>
+          <Text color={isSelected ? theme.accent : theme.muted}>
+            {isSelected ? "● " : "○ "}
+          </Text>
         )}
       />
-
-      <Box marginTop={1}>
-        <Text color={theme.muted}>{TRANSCRIPTION_CHOICES[0]?.description}</Text>
-        <Text color={theme.muted}>{TRANSCRIPTION_CHOICES[1]?.description}</Text>
-        <Text color={theme.muted}>Press Ctrl+C to cancel.</Text>
-      </Box>
     </AppFrame>
   );
 }
+
+const TRANSCRIPTION_CHOICES: Array<{
+  value: Exclude<TranscriptionChoice, null>;
+  label: string;
+}> = [
+  {
+    value: "local",
+    label: "(free, private, takes 2-3 minutes to setup)",
+  },
+  {
+    value: "https",
+    label: "0.5$/hour, works without setup",
+  },
+];

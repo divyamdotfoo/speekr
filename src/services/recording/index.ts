@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { stat } from "node:fs/promises";
 import type { Readable, Writable } from "node:stream";
-import { AUDIO_RECORDING_CONFIG } from "../../constants/config.ts";
+import { AUDIO_RECORDING_CONFIG } from "../../constants/index.ts";
 import type {
   RecordSession,
   RecordSessionResult,
