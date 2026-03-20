@@ -1,6 +1,6 @@
 export {
   ensureTranscriptionRuntime,
   getTranscriptionHelperScriptPath,
-  transcribeRecording,
+  transcribeRecordingLocally,
 } from "./local.ts";
 export { transcribeRecordingWithAI } from "./ai.ts";

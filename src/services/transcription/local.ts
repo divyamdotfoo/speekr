@@ -185,7 +185,7 @@ export async function ensureTranscriptionRuntime(input?: {
   });
 }
 
-export async function transcribeRecording(input: {
+export async function transcribeRecordingLocally(input: {
   audioPath: string;
   model?: string;
   languageCode?: string;

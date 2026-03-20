@@ -4,7 +4,10 @@ import { render } from "ink";
 import { createElement } from "react";
 import { renderCommandScreen } from "../../components/layout/command-screen.tsx";
 import { runTranscriptionChoiceScreen } from "../../components/recording/transcription-choice-screen.tsx";
-import { runTranscriptionProgressScreen } from "../../components/recording/transcription-progress-screen.tsx";
+import {
+  runHTTPSTranscriptionProgressScreen,
+  runTranscriptionProgressScreen,
+} from "../../components/recording/transcription-progress-screen.tsx";
 import { renderRecordingSavedScreen } from "../../components/recording/recording-saved-screen.tsx";
 import { RecordingSessionScreen } from "../../components/recording/recording-session-screen.tsx";
 import {
@@ -19,9 +22,8 @@ import {
   getRecordingQualitySummary,
   resolveFfmpegExecutable as resolveAudioFfmpegExecutable,
 } from "../../services/recording/index.ts";
-import { transcribeRecordingWithAI } from "../../services/transcription/ai.ts";
 import { RECORDINGS_DIRECTORY_PATH } from "../../db/client.ts";
-import type { RecordSessionResult } from "../../types/index.ts";
+import type { RecordSessionResult, TranscriptionChoice } from "../../types/index.ts";
 
 export function resolveFfmpegExecutable() {
   return resolveAudioFfmpegExecutable();
@@ -39,19 +41,10 @@ export function showMissingFfmpegNotice() {
   });
 }
 
-export async function runInteractiveRecording(ffmpegPath: string) {
-  const transcriptionChoice = await resolveTranscriptionChoice();
-  if (transcriptionChoice === null) {
-    renderCommandScreen({
-      title: "Recording cancelled",
-      subtitle: "record",
-      tone: "warning",
-      statusLabel: "No transcription mode selected",
-      message: "Select a transcription mode to continue recording.",
-    });
-    return;
-  }
-
+export async function runInteractiveRecording(
+  ffmpegPath: string,
+  input?: { transcription?: Exclude<TranscriptionChoice, null> }
+) {
   await mkdir(RECORDINGS_DIRECTORY_PATH, { recursive: true });
   const outputPath = join(RECORDINGS_DIRECTORY_PATH, buildRecordingFileName());
   const session = createRecordSession({
@@ -73,6 +66,22 @@ export async function runInteractiveRecording(ffmpegPath: string) {
   });
 
   const languageCode = resolvePreferredLanguageCode();
+  const transcriptionChoice =
+    input?.transcription ?? (await resolveTranscriptionChoiceAfterRecording());
+  if (transcriptionChoice === null) {
+    renderRecordingSavedScreen({
+      outputPath: result.outputPath,
+      statusLabel:
+        result.stopReason === "silence_timeout"
+          ? "Stopped after prolonged silence"
+          : "Capture complete",
+      qualitySummary: getRecordingQualitySummary(),
+      transcriptPath: undefined,
+      transcriptionStatus: "Skipped: transcription mode not selected.",
+    });
+    return;
+  }
+
   let transcriptPath: string | undefined;
   let transcriptionStatus = "Skipped";
   try {
@@ -82,11 +91,9 @@ export async function runInteractiveRecording(ffmpegPath: string) {
             audioPath: result.outputPath,
             languageCode,
           })
-        : await transcribeRecordingWithAI({
-            transcription: {
-              audioPath: result.outputPath,
-              languageCode,
-            },
+        : await runHTTPSTranscriptionProgressScreen({
+            audioPath: result.outputPath,
+            languageCode,
           });
     transcriptPath = transcript.transcriptPath;
     transcriptionStatus = `Completed${
@@ -124,7 +131,7 @@ function resolvePreferredLanguageCode() {
   return track?.language;
 }
 
-async function resolveTranscriptionChoice() {
+async function resolveTranscriptionChoiceAfterRecording() {
   const current = getTranscriptionChoice();
   if (current) {
     return current;

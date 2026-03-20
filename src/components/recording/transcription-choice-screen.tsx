@@ -37,13 +37,13 @@ function TranscriptionChoiceScreen(input: {
     <AppFrame title="Choose transcription mode" subtitle="record">
       <Box marginBottom={1} flexDirection="column">
         <Text color={theme.muted}>
-          Choose how Speekr should transcribe your recordings before we start
-          capture.
+          Choose how Speekr should transcribe this recording for grammar checks,
+          vocabulary suggestions, and language-learning feedback.
         </Text>
       </Box>
       <Box marginBottom={1} flexDirection="column">
         <Text color={theme.warning}>
-          Recommended: Use local mode for free, private, offline transcription.
+          Recommended: Local mode is free, private, and works offline.
         </Text>
       </Box>
 
@@ -71,10 +71,11 @@ const TRANSCRIPTION_CHOICES: Array<{
 }> = [
   {
     value: "local",
-    label: "(free, private, takes 2-3 minutes to setup)",
+    label:
+      "Local (recommended, free, private, takes 2-3 minutes to setup, uses faster-whisper)",
   },
   {
     value: "https",
-    label: "0.5$/hour, works without setup",
+    label: "HTTPS (0.5$/hour, works without setup, uses OpenAI whisper)",
   },
 ];

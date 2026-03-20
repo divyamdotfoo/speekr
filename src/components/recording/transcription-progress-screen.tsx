@@ -2,80 +2,105 @@ import { Box, Text, render } from "ink";
 import { useEffect, useState } from "react";
 import { AppFrame } from "../layout/app-frame.tsx";
 import { theme } from "../theme/tokens.ts";
-import { transcribeRecording } from "../../services/transcription/index.ts";
+import {
+  transcribeRecordingLocally,
+  transcribeRecordingWithAI,
+} from "../../services/transcription/index.ts";
 import type {
+  HTTPSTranscriptionProgressEvent,
   TranscriptionProgressEvent,
   TranscriptionResult,
 } from "../../types/index.ts";
+
+type ProgressMode = "local" | "https";
+type AnyTranscriptionProgressEvent =
+  | TranscriptionProgressEvent
+  | HTTPSTranscriptionProgressEvent;
+
+const LOG_PANEL_LINES = 6;
 
 export async function runTranscriptionProgressScreen(input: {
   audioPath: string;
   languageCode?: string;
 }) {
-  if (!process.stdin.isTTY) {
-    return await transcribeRecording({
-      audioPath: input.audioPath,
-      languageCode: input.languageCode,
-    });
-  }
+  return await runProgressScreen({
+    mode: "local",
+    audioPath: input.audioPath,
+    languageCode: input.languageCode,
+  });
+}
 
-  return await new Promise<TranscriptionResult>((resolve, reject) => {
-    const instance = render(
-      <TranscriptionProgressScreen
-        audioPath={input.audioPath}
-        languageCode={input.languageCode}
-        onSuccess={(result) => {
-          instance.unmount();
-          resolve(result);
-        }}
-        onError={(error) => {
-          instance.unmount();
-          reject(error);
-        }}
-      />
-    );
+export async function runHTTPSTranscriptionProgressScreen(input: {
+  audioPath: string;
+  languageCode?: string;
+}) {
+  return await runProgressScreen({
+    mode: "https",
+    audioPath: input.audioPath,
+    languageCode: input.languageCode,
   });
 }
 
 export function TranscriptionProgressScreen(input: {
+  mode: ProgressMode;
   audioPath: string;
   languageCode?: string;
   onSuccess: (result: TranscriptionResult) => void;
   onError: (error: Error) => void;
 }) {
-  const [event, setEvent] = useState<TranscriptionProgressEvent>({
-    step: "starting",
-    message: "Preparing transcription process.",
-    progressBar: "[#-------------------]",
-    percent: null,
-    isIndeterminate: true,
-    stageLabel: "Preparing process",
-  });
+  const [event, setEvent] = useState<AnyTranscriptionProgressEvent>(
+    getInitialProgressEvent(input.mode)
+  );
   const [tick, setTick] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
 
   useEffect(() => {
     let isMounted = true;
-    transcribeRecording({
-      audioPath: input.audioPath,
-      languageCode: input.languageCode,
-      onEvent(nextEvent) {
-        if (!isMounted) {
-          return;
-        }
-        setEvent(nextEvent);
-      },
-      onLog(line) {
-        if (!isMounted) {
-          return;
-        }
-        setLogs((current) => {
-          const next = [...current, line];
-          return next.slice(-LOG_PANEL_LINES);
-        });
-      },
-    })
+    const runTranscription =
+      input.mode === "local"
+        ? transcribeRecordingLocally({
+            audioPath: input.audioPath,
+            languageCode: input.languageCode,
+            onEvent(nextEvent) {
+              if (!isMounted) {
+                return;
+              }
+              setEvent(nextEvent);
+            },
+            onLog(line) {
+              if (!isMounted) {
+                return;
+              }
+              setLogs((current) => {
+                const next = [...current, line];
+                return next.slice(-LOG_PANEL_LINES);
+              });
+            },
+          })
+        : transcribeRecordingWithAI({
+            transcription: {
+              audioPath: input.audioPath,
+              languageCode: input.languageCode,
+            },
+            onEvent(nextEvent) {
+              if (!isMounted) {
+                return;
+              }
+              setEvent(nextEvent);
+            },
+            onLog(line) {
+              if (!isMounted) {
+                return;
+              }
+              setLogs((current) => {
+                const next = [...current, line];
+                return next.slice(-LOG_PANEL_LINES);
+              });
+            },
+          });
+
+    runTranscription
       .then((result) => {
         if (isMounted) {
           setTimeout(() => {
@@ -110,7 +135,7 @@ export function TranscriptionProgressScreen(input: {
     return () => clearInterval(timer);
   }, []);
 
-  const checklist = getTranscriptionChecklist(event.step);
+  const checklist = getTranscriptionChecklist(input.mode, event.step);
   const displayBar = event.isIndeterminate
     ? buildMarqueeProgressBar(tick)
     : buildDeterminateProgressBar(event.percent);
@@ -164,6 +189,46 @@ export function TranscriptionProgressScreen(input: {
   );
 }
 
+async function runProgressScreen(input: {
+  mode: ProgressMode;
+  audioPath: string;
+  languageCode?: string;
+}) {
+  if (!process.stdin.isTTY) {
+    if (input.mode === "local") {
+      return await transcribeRecordingLocally({
+        audioPath: input.audioPath,
+        languageCode: input.languageCode,
+      });
+    }
+
+    return await transcribeRecordingWithAI({
+      transcription: {
+        audioPath: input.audioPath,
+        languageCode: input.languageCode,
+      },
+    });
+  }
+
+  return await new Promise<TranscriptionResult>((resolve, reject) => {
+    const instance = render(
+      <TranscriptionProgressScreen
+        mode={input.mode}
+        audioPath={input.audioPath}
+        languageCode={input.languageCode}
+        onSuccess={(result) => {
+          instance.unmount();
+          resolve(result);
+        }}
+        onError={(error) => {
+          instance.unmount();
+          reject(error);
+        }}
+      />
+    );
+  });
+}
+
 function buildMarqueeProgressBar(tick: number) {
   const width = 24;
   const head = tick % width;
@@ -185,28 +250,59 @@ function buildDeterminateProgressBar(percent: number | null) {
   return `[${"#".repeat(filled)}${"-".repeat(Math.max(0, width - filled))}]`;
 }
 
-function getTranscriptionChecklist(step: TranscriptionProgressEvent["step"]) {
-  const order: TranscriptionProgressEvent["step"][] = [
+function getTranscriptionChecklist(
+  mode: ProgressMode,
+  step: AnyTranscriptionProgressEvent["step"]
+) {
+  if (mode === "local") {
+    const order: TranscriptionProgressEvent["step"][] = [
+      "starting",
+      "loading_model",
+      "transcribing",
+      "writing_output",
+      "complete",
+    ];
+    const labels: Record<TranscriptionProgressEvent["step"], string> = {
+      starting: "Preparing process",
+      loading_model: "Loading model",
+      transcribing: "Transcribing audio",
+      writing_output: "Saving transcript",
+      complete: "Completed",
+    };
+
+    return mapChecklist(order, labels, step);
+  }
+
+  const order: HTTPSTranscriptionProgressEvent["step"][] = [
     "starting",
-    "loading_model",
-    "transcribing",
+    "uploading_audio",
+    "awaiting_provider",
     "writing_output",
     "complete",
   ];
-  const labels: Record<TranscriptionProgressEvent["step"], string> = {
+  const labels: Record<HTTPSTranscriptionProgressEvent["step"], string> = {
     starting: "Preparing process",
-    loading_model: "Loading model",
-    transcribing: "Transcribing audio",
+    uploading_audio: "Uploading audio",
+    awaiting_provider: "Waiting for provider",
     writing_output: "Saving transcript",
     complete: "Completed",
   };
-  const activeIndex = order.indexOf(step);
+
+  return mapChecklist(order, labels, step);
+}
+
+function mapChecklist<TStep extends string>(
+  order: TStep[],
+  labels: Record<TStep, string>,
+  currentStep: string
+) {
+  const activeIndex = order.indexOf(currentStep as TStep);
 
   return order.map((id, index) => {
     if (activeIndex === -1) {
       return { id, label: labels[id], state: "pending" as const };
     }
-    if (index < activeIndex || step === "complete") {
+    if (index < activeIndex || currentStep === "complete") {
       return { id, label: labels[id], state: "done" as const };
     }
     if (index === activeIndex) {
@@ -222,7 +318,27 @@ function formatClock(totalSeconds: number) {
   return `${minutes}:${seconds}`;
 }
 
-const LOG_PANEL_LINES = 6;
+function getInitialProgressEvent(mode: ProgressMode): AnyTranscriptionProgressEvent {
+  if (mode === "local") {
+    return {
+      step: "starting",
+      message: "Preparing transcription process.",
+      progressBar: "[#-------------------]",
+      percent: null,
+      isIndeterminate: true,
+      stageLabel: "Preparing process",
+    };
+  }
+
+  return {
+    step: "starting",
+    message: "Preparing cloud transcription process.",
+    progressBar: "[#-------------------]",
+    percent: null,
+    isIndeterminate: true,
+    stageLabel: "Preparing process",
+  };
+}
 
 function buildFixedLogLines(logs: string[], lineCount: number) {
   const visible = logs.slice(-lineCount);

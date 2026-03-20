@@ -1,8 +1,12 @@
 import { createReadStream } from "node:fs";
 import OpenAI from "openai";
-import type { TranscriptionInput, TranscriptionOutput } from "../../types/index.ts";
+import type {
+  AIProviderInterface,
+  TranscriptionInput,
+  TranscriptionOutput,
+} from "../../types/index.ts";
 
-export class OpenAIProvider {
+export class OpenAIProvider implements AIProviderInterface {
   private readonly client: OpenAI;
 
   constructor(apiKey: string | null) {

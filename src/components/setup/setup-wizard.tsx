@@ -8,6 +8,7 @@ import type {
   AIProvider,
   ProficiencyLevel,
   SupportedLanguage,
+  TranscriptionChoice,
 } from "../../types/index.ts";
 import { StatusBadge } from "../feedback/status-badge.tsx";
 import { AppFrame } from "../layout/app-frame.tsx";
@@ -20,6 +21,7 @@ type SetupStep =
   | "language"
   | "proficiency"
   | "provider"
+  | "transcription_choice"
   | "api_key"
   | "saving";
 
@@ -28,6 +30,7 @@ type SetupAnswers = {
   languageId: string;
   proficiency: ProficiencyLevel;
   defaultModel: AIProvider | null;
+  transcriptionChoice: Exclude<TranscriptionChoice, null>;
   apiKey: string | null;
 };
 
@@ -75,6 +78,9 @@ function SetupWizard({
   >(null);
   const [proficiency, setProficiency] = useState<ProficiencyLevel | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<AIProvider | null>(null);
+  const [selectedTranscriptionChoice, setSelectedTranscriptionChoice] = useState<
+    Exclude<TranscriptionChoice, null> | null
+  >(null);
   const [providerApiKeyInput, setProviderApiKeyInput] = useState("");
   const [providerApiKeyError, setProviderApiKeyError] = useState<string | null>(
     null
@@ -91,9 +97,11 @@ function SetupWizard({
         return 3;
       case "provider":
         return 4;
+      case "transcription_choice":
+        return 5;
       case "api_key":
       case "saving":
-        return 5;
+        return 6;
       default:
         return 1;
     }
@@ -113,6 +121,13 @@ function SetupWizard({
   function handleProviderSelect(value: AIProvider) {
     setSelectedProvider(value);
     setProviderApiKeyError(null);
+    setStep("transcription_choice");
+  }
+
+  function handleTranscriptionChoiceSelect(
+    value: Exclude<TranscriptionChoice, null>
+  ) {
+    setSelectedTranscriptionChoice(value);
     setStep("api_key");
   }
 
@@ -126,7 +141,7 @@ function SetupWizard({
     setProviderApiKeyError(null);
     setIsSaving(true);
     setStep("saving");
-    if (!language || !proficiency || !selectedProvider) {
+    if (!language || !proficiency || !selectedProvider || !selectedTranscriptionChoice) {
       setIsSaving(false);
       return;
     }
@@ -135,6 +150,7 @@ function SetupWizard({
       languageId: language.id,
       proficiency,
       defaultModel: selectedProvider,
+      transcriptionChoice: selectedTranscriptionChoice,
       apiKey: trimmedValue,
     });
     setIsSaving(false);
@@ -145,7 +161,7 @@ function SetupWizard({
       title="First-time setup"
       subtitle={`required before "${commandName}"`}
     >
-      <StatusBadge tone="info" label={`Step ${activeStepIndex}/5`} />
+      <StatusBadge tone="info" label={`Step ${activeStepIndex}/6`} />
       <Box marginBottom={1}>
         <Text color={theme.muted}>Press Esc or Ctrl+C to cancel setup.</Text>
       </Box>
@@ -250,6 +266,42 @@ function SetupWizard({
           </Text>
           <Text color={theme.accent}>
             {selectedProvider === "anthropic" ? "Anthropic" : "OpenAI"}
+          </Text>
+        </Box>
+      )}
+
+      {step === "username" ||
+      step === "language" ||
+      step === "proficiency" ||
+      step === "provider" ? null : step === "transcription_choice" ? (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text color={theme.brand}>
+            Which transcription mode should Speekr use by default for recordings?
+          </Text>
+          <Box marginTop={1}>
+            <SelectInput
+              items={[
+                { label: "Local", value: "local" as const },
+                { label: "HTTPS", value: "https" as const },
+              ]}
+              onSelect={(item) => {
+                handleTranscriptionChoiceSelect(item.value);
+              }}
+              indicatorComponent={({ isSelected }) => (
+                <Text color={isSelected ? theme.accent : theme.muted}>
+                  {isSelected ? "● " : "○ "}
+                </Text>
+              )}
+            />
+          </Box>
+        </Box>
+      ) : (
+        <Box marginBottom={1}>
+          <Text color={theme.brand}>
+            Which transcription mode should Speekr use by default for recordings?{" "}
+          </Text>
+          <Text color={theme.accent}>
+            {selectedTranscriptionChoice === "https" ? "HTTPS" : "Local"}
           </Text>
         </Box>
       )}

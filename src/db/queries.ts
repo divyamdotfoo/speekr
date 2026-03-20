@@ -197,9 +197,17 @@ export function runInitialSetup(input: {
   languageId: string;
   proficiency: ProficiencyLevel;
   defaultModel: AIProvider | null;
+  transcriptionChoice: Exclude<TranscriptionChoice, null>;
   apiKey: string | null;
 }): { user: User; track: UserTrack } {
-  const { username, languageId, proficiency, defaultModel, apiKey } = input;
+  const {
+    username,
+    languageId,
+    proficiency,
+    defaultModel,
+    transcriptionChoice,
+    apiKey,
+  } = input;
   const db = getDatabaseClient();
 
   const userId = getPrimaryUserId(db) ?? nanoid();
@@ -244,7 +252,7 @@ export function runInitialSetup(input: {
       nextOpenAIKey,
       nextAnthropicKey,
       nextDefaultModel,
-      existingConfig.transcriptionChoice,
+      transcriptionChoice,
       existingConfig.rowid
     );
     db.prepare("DELETE FROM configuration WHERE rowid != ?").run(

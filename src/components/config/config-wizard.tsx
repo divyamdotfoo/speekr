@@ -14,6 +14,7 @@ import type {
   AIProvider,
   ProficiencyLevel,
   SupportedLanguage,
+  TranscriptionChoice,
 } from "../../types/index.ts";
 import { StatusBadge } from "../feedback/status-badge.tsx";
 import { AppFrame } from "../layout/app-frame.tsx";
@@ -24,6 +25,7 @@ type ConfigStep =
   | "language"
   | "proficiency"
   | "provider"
+  | "transcription_choice"
   | "api_key"
   | "saving";
 
@@ -32,6 +34,7 @@ type ConfigAnswers = {
   languageId: string;
   proficiency: ProficiencyLevel;
   defaultModel: AIProvider;
+  transcriptionChoice: Exclude<TranscriptionChoice, null>;
   apiKey: string | null;
 };
 
@@ -40,6 +43,7 @@ type ConfigDefaults = {
   languageCode: string | null;
   proficiency: ProficiencyLevel;
   provider: AIProvider;
+  transcriptionChoice: Exclude<TranscriptionChoice, null>;
   apiKeyByProvider: Record<AIProvider, string | null>;
 };
 
@@ -85,6 +89,9 @@ function ConfigWizard(input: {
   const [selectedProficiency, setSelectedProficiency] =
     useState<ProficiencyLevel | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<AIProvider | null>(null);
+  const [selectedTranscriptionChoice, setSelectedTranscriptionChoice] = useState<
+    Exclude<TranscriptionChoice, null> | null
+  >(null);
   const [providerApiKeyInput, setProviderApiKeyInput] = useState("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
@@ -100,9 +107,11 @@ function ConfigWizard(input: {
         return 3;
       case "provider":
         return 4;
+      case "transcription_choice":
+        return 5;
       case "api_key":
       case "saving":
-        return 5;
+        return 6;
       default:
         return 1;
     }
@@ -112,6 +121,8 @@ function ConfigWizard(input: {
     input.languages.find((language) => language.id === selectedLanguageId)?.label ??
     getCurrentLanguageLabel(input.languages, input.defaults.languageCode);
   const resolvedProvider = selectedProvider ?? input.defaults.provider;
+  const resolvedTranscriptionChoice =
+    selectedTranscriptionChoice ?? input.defaults.transcriptionChoice;
 
   useInput((value, key) => {
     if (key.escape || (key.ctrl && value === "c")) {
@@ -151,6 +162,7 @@ function ConfigWizard(input: {
       languageId: nextLanguageId,
       proficiency: nextProficiency,
       defaultModel: nextProvider,
+      transcriptionChoice: resolvedTranscriptionChoice,
       apiKey: nextApiKey,
     });
     setSaveStatus("saved");
@@ -161,7 +173,7 @@ function ConfigWizard(input: {
 
   return (
     <AppFrame title="Update configuration" subtitle="config">
-      <StatusBadge tone="info" label={`Step ${activeStepIndex}/5`} />
+      <StatusBadge tone="info" label={`Step ${activeStepIndex}/6`} />
       <Box marginBottom={1}>
         <Text color={theme.muted}>
           Press Enter to keep current value. Press Esc or Ctrl+C to cancel.
@@ -297,7 +309,7 @@ function ConfigWizard(input: {
               ]}
               onSelect={(item) => {
                 setSelectedProvider(item.value);
-                setStep("api_key");
+                setStep("transcription_choice");
               }}
               indicatorComponent={({ isSelected }) => (
                 <Text color={isSelected ? theme.accent : theme.muted}>
@@ -314,6 +326,51 @@ function ConfigWizard(input: {
           </Text>
           <Text color={theme.accent}>
             {resolvedProvider === "anthropic" ? "Anthropic" : "OpenAI"}
+          </Text>
+        </Box>
+      )}
+
+      {step === "username" ||
+      step === "language" ||
+      step === "proficiency" ||
+      step === "provider" ? null : step === "transcription_choice" ? (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text color={theme.brand}>
+            Which transcription mode should Speekr use by default for recordings?
+          </Text>
+          <Text color={theme.muted}>
+            Current:{" "}
+            {input.defaults.transcriptionChoice === "https" ? "HTTPS" : "Local"}
+          </Text>
+          <Box marginTop={1}>
+            <SelectInput
+              items={[
+                {
+                  label: `Keep current (${input.defaults.transcriptionChoice === "https" ? "HTTPS" : "Local"})`,
+                  value: null as Exclude<TranscriptionChoice, null> | null,
+                },
+                { label: "Local", value: "local" as const },
+                { label: "HTTPS", value: "https" as const },
+              ]}
+              onSelect={(item) => {
+                setSelectedTranscriptionChoice(item.value);
+                setStep("api_key");
+              }}
+              indicatorComponent={({ isSelected }) => (
+                <Text color={isSelected ? theme.accent : theme.muted}>
+                  {isSelected ? "● " : "○ "}
+                </Text>
+              )}
+            />
+          </Box>
+        </Box>
+      ) : (
+        <Box marginBottom={1}>
+          <Text color={theme.brand}>
+            Which transcription mode should Speekr use by default for recordings?{" "}
+          </Text>
+          <Text color={theme.accent}>
+            {resolvedTranscriptionChoice === "https" ? "HTTPS" : "Local"}
           </Text>
         </Box>
       )}
@@ -374,6 +431,7 @@ function readConfigDefaults(): ConfigDefaults {
     languageCode: primaryTrack?.language ?? null,
     proficiency: primaryTrack?.proficiency ?? "beginner",
     provider: configuration.defaultModel ?? "openai",
+    transcriptionChoice: configuration.transcriptionChoice ?? "local",
     apiKeyByProvider: {
       openai: configuration.openAIKey ?? null,
       anthropic: configuration.anthropicKey ?? null,

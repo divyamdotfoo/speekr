@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { InvalidArgumentError, type Command } from "commander";
 import type { CommandRegistrar } from "../types.ts";
 import { renderCommandScreen } from "../../components/layout/command-screen.tsx";
 import {
@@ -6,12 +6,21 @@ import {
   runInteractiveRecording,
   showMissingFfmpegNotice,
 } from "./utils.ts";
+import type { TranscriptionChoice } from "../../types/index.ts";
 
 export const registerRecordCommand: CommandRegistrar = (program: Command) => {
   return program
     .command("record")
     .description("Start a new learning session")
-    .action(async () => {
+    .option(
+      "-t, --transcription <mode>",
+      "Override transcription mode for this run (local|https)",
+      parseTranscriptionMode
+    )
+    .action(
+      async (options: {
+        transcription?: Exclude<TranscriptionChoice, null>;
+      }) => {
       if (!process.stdin.isTTY) {
         renderCommandScreen({
           title: "Interactive terminal required",
@@ -30,7 +39,9 @@ export const registerRecordCommand: CommandRegistrar = (program: Command) => {
       }
 
       try {
-        await runInteractiveRecording(ffmpegPath);
+        await runInteractiveRecording(ffmpegPath, {
+          transcription: options.transcription,
+        });
       } catch (error) {
         const detail =
           error instanceof Error ? error.message : "Unknown recording error.";
@@ -42,5 +53,17 @@ export const registerRecordCommand: CommandRegistrar = (program: Command) => {
           message: detail,
         });
       }
-    });
+      }
+    );
 };
+
+function parseTranscriptionMode(value: string): Exclude<TranscriptionChoice, null> {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "local" || normalized === "https") {
+    return normalized;
+  }
+
+  throw new InvalidArgumentError(
+    'Transcription mode must be "local" or "https".'
+  );
+}

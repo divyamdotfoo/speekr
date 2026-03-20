@@ -95,6 +95,23 @@ export type TranscriptionProgressEvent = {
   hint?: string;
 };
 
+export type HTTPSTranscriptionProgressStep =
+  | "starting"
+  | "uploading_audio"
+  | "awaiting_provider"
+  | "writing_output"
+  | "complete";
+
+export type HTTPSTranscriptionProgressEvent = {
+  step: HTTPSTranscriptionProgressStep;
+  message: string;
+  progressBar: string;
+  percent: number | null;
+  isIndeterminate?: boolean;
+  stageLabel?: string;
+  hint?: string;
+};
+
 export type TranscriptionResult = {
   text: string;
   language: string | null;
@@ -122,3 +139,7 @@ export type TranscriptionOutput = {
   text: string;
   language: string | null;
 };
+
+export interface AIProviderInterface {
+  transcribe: (input: TranscriptionInput) => Promise<TranscriptionOutput>;
+}
