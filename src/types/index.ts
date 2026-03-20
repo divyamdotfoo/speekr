@@ -25,6 +25,7 @@ export type SupportedLanguage = {
 export type Configuration = {
   openAIKey: string | null;
   anthropicKey: string | null;
+  defaultModel: AIProvider | null;
   transcriptionChoice: TranscriptionChoice;
 };
 
@@ -45,14 +46,18 @@ export type RecordSession = {
   on: <K extends "silence-warning" | "silence-cleared">(
     event: K,
     listener: (
-      payload: K extends "silence-warning" ? { secondsUntilAutoStop: number } : undefined,
-    ) => void,
+      payload: K extends "silence-warning"
+        ? { secondsUntilAutoStop: number }
+        : undefined
+    ) => void
   ) => void;
   off: <K extends "silence-warning" | "silence-cleared">(
     event: K,
     listener: (
-      payload: K extends "silence-warning" ? { secondsUntilAutoStop: number } : undefined,
-    ) => void,
+      payload: K extends "silence-warning"
+        ? { secondsUntilAutoStop: number }
+        : undefined
+    ) => void
   ) => void;
 };
 
@@ -94,4 +99,26 @@ export type TranscriptionResult = {
   text: string;
   language: string | null;
   transcriptPath: string;
+};
+
+export type AIProvider = "openai" | "anthropic";
+
+export type AIConfig = {
+  provider: AIProvider;
+  openAIKey?: string | null;
+  anthropicKey?: string | null;
+};
+
+export type AIRequestParams = {
+  provider?: AIProvider;
+};
+
+export type TranscriptionInput = {
+  audioPath: string;
+  languageCode?: string;
+};
+
+export type TranscriptionOutput = {
+  text: string;
+  language: string | null;
 };

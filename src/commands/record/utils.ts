@@ -2,7 +2,6 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { render } from "ink";
 import { createElement } from "react";
-import { TRANSCRIPTION_CONFIG } from "../../constants/config.ts";
 import { renderCommandScreen } from "../../components/layout/command-screen.tsx";
 import { runTranscriptionChoiceScreen } from "../../components/recording/transcription-choice-screen.tsx";
 import { runTranscriptionProgressScreen } from "../../components/recording/transcription-progress-screen.tsx";
@@ -20,6 +19,7 @@ import {
   getRecordingQualitySummary,
   resolveFfmpegExecutable as resolveAudioFfmpegExecutable,
 } from "../../services/recording/index.ts";
+import { transcribeRecordingWithAI } from "../../services/transcription/ai.ts";
 import { RECORDINGS_DIRECTORY_PATH } from "../../db/client.ts";
 import type { RecordSessionResult } from "../../types/index.ts";
 
@@ -51,19 +51,6 @@ export async function runInteractiveRecording(ffmpegPath: string) {
     });
     return;
   }
-  if (transcriptionChoice === "https") {
-    renderCommandScreen({
-      title: "HTTPS transcription not available yet",
-      subtitle: "record",
-      tone: "info",
-      statusLabel: "Coming soon",
-      message:
-        `To use OpenAI over HTTPS, add your OpenAI API key first. ` +
-        `This path is not implemented in this version yet.\n\n` +
-        `Tip: choose local mode to continue now. It is free, downloads the ${TRANSCRIPTION_CONFIG.localModelName} model (${TRANSCRIPTION_CONFIG.localModelDownloadSizeLabel}), and first setup usually takes ${TRANSCRIPTION_CONFIG.firstRunDurationLabel}.`,
-    });
-    return;
-  }
 
   await mkdir(RECORDINGS_DIRECTORY_PATH, { recursive: true });
   const outputPath = join(RECORDINGS_DIRECTORY_PATH, buildRecordingFileName());
@@ -89,14 +76,26 @@ export async function runInteractiveRecording(ffmpegPath: string) {
   let transcriptPath: string | undefined;
   let transcriptionStatus = "Skipped";
   try {
-    const transcript = await runTranscriptionProgressScreen({
-      audioPath: result.outputPath,
-      languageCode,
-    });
+    const transcript =
+      transcriptionChoice === "local"
+        ? await runTranscriptionProgressScreen({
+            audioPath: result.outputPath,
+            languageCode,
+          })
+        : await transcribeRecordingWithAI({
+            transcription: {
+              audioPath: result.outputPath,
+              languageCode,
+            },
+          });
     transcriptPath = transcript.transcriptPath;
-    transcriptionStatus = `Completed${transcript.language ? ` (${transcript.language})` : ""}`;
+    transcriptionStatus = `Completed${
+      transcript.language ? ` (${transcript.language})` : ""
+    }`;
   } catch (error) {
-    transcriptionStatus = `Failed: ${error instanceof Error ? error.message : "Unknown error."}`;
+    transcriptionStatus = `Failed: ${
+      error instanceof Error ? error.message : "Unknown error."
+    }`;
   }
 
   renderRecordingSavedScreen({

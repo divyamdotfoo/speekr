@@ -8,6 +8,7 @@ import {
   RECORDINGS_DIRECTORY_PATH,
 } from "./client.ts";
 import type {
+  AIProvider,
   Configuration,
   ProficiencyLevel,
   SupportedLanguage,
@@ -108,8 +109,24 @@ export function saveConfiguration(config: Configuration) {
 
   db.exec("DELETE FROM configuration");
   db.prepare(
-    "INSERT INTO configuration (openAIKey, anthropicKey, transcriptionChoice) VALUES (@openAIKey, @anthropicKey, @transcriptionChoice)"
+    "INSERT INTO configuration (openAIKey, anthropicKey, defaultModel, transcriptionChoice) VALUES (@openAIKey, @anthropicKey, @defaultModel, @transcriptionChoice)"
   ).run(config);
+}
+
+export function getConfiguration(): Configuration {
+  const db = getDatabaseClient();
+  const row = db
+    .prepare(
+      "SELECT openAIKey, anthropicKey, defaultModel, transcriptionChoice FROM configuration ORDER BY rowid ASC LIMIT 1"
+    )
+    .get() as Configuration | undefined;
+
+  return {
+    openAIKey: row?.openAIKey ?? null,
+    anthropicKey: row?.anthropicKey ?? null,
+    defaultModel: row?.defaultModel ?? null,
+    transcriptionChoice: row?.transcriptionChoice ?? null,
+  };
 }
 
 export function getTranscriptionChoice(): TranscriptionChoice {
@@ -120,26 +137,45 @@ export function getTranscriptionChoice(): TranscriptionChoice {
   return row?.transcriptionChoice ?? null;
 }
 
+export function getOpenAIKey(): string | null {
+  const db = getDatabaseClient();
+  const row = db
+    .prepare("SELECT openAIKey FROM configuration LIMIT 1")
+    .get() as { openAIKey: string | null } | undefined;
+  return row?.openAIKey ?? null;
+}
+
 export function setTranscriptionChoice(choice: Exclude<TranscriptionChoice, null>) {
   const db = getDatabaseClient();
   const existingRow = db
     .prepare(
-      "SELECT rowid, openAIKey, anthropicKey FROM configuration ORDER BY rowid ASC LIMIT 1",
+      "SELECT rowid, openAIKey, anthropicKey, defaultModel FROM configuration ORDER BY rowid ASC LIMIT 1",
     )
     .get() as
-    | { rowid: number; openAIKey: string | null; anthropicKey: string | null }
+    | {
+        rowid: number;
+        openAIKey: string | null;
+        anthropicKey: string | null;
+        defaultModel: AIProvider | null;
+      }
     | undefined;
 
   if (!existingRow) {
     db.prepare(
-      "INSERT INTO configuration (openAIKey, anthropicKey, transcriptionChoice) VALUES (NULL, NULL, ?)",
+      "INSERT INTO configuration (openAIKey, anthropicKey, defaultModel, transcriptionChoice) VALUES (NULL, NULL, NULL, ?)",
     ).run(choice);
     return;
   }
 
   db.prepare(
-    "UPDATE configuration SET openAIKey = ?, anthropicKey = ?, transcriptionChoice = ? WHERE rowid = ?",
-  ).run(existingRow.openAIKey, existingRow.anthropicKey, choice, existingRow.rowid);
+    "UPDATE configuration SET openAIKey = ?, anthropicKey = ?, defaultModel = ?, transcriptionChoice = ? WHERE rowid = ?",
+  ).run(
+    existingRow.openAIKey,
+    existingRow.anthropicKey,
+    existingRow.defaultModel,
+    choice,
+    existingRow.rowid
+  );
   db.prepare("DELETE FROM configuration WHERE rowid != ?").run(existingRow.rowid);
 }
 
@@ -189,8 +225,10 @@ export function runInitialSetup(input: {
   username: string;
   languageId: string;
   proficiency: ProficiencyLevel;
+  defaultModel: AIProvider | null;
+  apiKey: string | null;
 }): { user: User; track: UserTrack } {
-  const { username, languageId, proficiency } = input;
+  const { username, languageId, proficiency, defaultModel, apiKey } = input;
   const db = getDatabaseClient();
 
   const primaryUser =
@@ -223,6 +261,48 @@ export function runInitialSetup(input: {
       languageId,
       proficiency,
     });
+
+    const existingConfig = db
+      .prepare(
+        "SELECT rowid, openAIKey, anthropicKey, defaultModel, transcriptionChoice FROM configuration ORDER BY rowid ASC LIMIT 1"
+      )
+      .get() as
+      | {
+          rowid: number;
+          openAIKey: string | null;
+          anthropicKey: string | null;
+          defaultModel: AIProvider | null;
+          transcriptionChoice: TranscriptionChoice;
+        }
+      | undefined;
+
+    if (!existingConfig) {
+      const nextOpenAIKey = defaultModel === "openai" ? apiKey : null;
+      const nextAnthropicKey = defaultModel === "anthropic" ? apiKey : null;
+      db.prepare(
+        "INSERT INTO configuration (openAIKey, anthropicKey, defaultModel, transcriptionChoice) VALUES (?, ?, ?, NULL)"
+      ).run(nextOpenAIKey, nextAnthropicKey, defaultModel);
+      return;
+    }
+
+    const nextOpenAIKey =
+      defaultModel === "openai" ? apiKey : existingConfig.openAIKey;
+    const nextAnthropicKey =
+      defaultModel === "anthropic" ? apiKey : existingConfig.anthropicKey;
+    const nextDefaultModel = defaultModel ?? existingConfig.defaultModel;
+
+    db.prepare(
+      "UPDATE configuration SET openAIKey = ?, anthropicKey = ?, defaultModel = ?, transcriptionChoice = ? WHERE rowid = ?"
+    ).run(
+      nextOpenAIKey,
+      nextAnthropicKey,
+      nextDefaultModel,
+      existingConfig.transcriptionChoice,
+      existingConfig.rowid
+    );
+    db.prepare("DELETE FROM configuration WHERE rowid != ?").run(
+      existingConfig.rowid
+    );
   });
 
   writeSetup();

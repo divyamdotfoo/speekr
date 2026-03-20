@@ -7,9 +7,9 @@ export const TRANSCRIPTION_CONFIG = {
   firstRunDurationLabel: "1-2 minutes",
   subsequentRunDurationLabel: "a few seconds",
   localChoiceDescription:
-    "free, private, offline",
+    "recommended: free, private, offline",
   httpsChoiceDescription:
-    "requires OpenAI API key over HTTPS (not implemented yet)",
+    "requires OpenAI API key over HTTPS",
 } as const;
 
 export const TRANSCRIPTION_CHOICES: Array<{
@@ -21,13 +21,13 @@ export const TRANSCRIPTION_CHOICES: Array<{
     value: "local",
     label:
       `Local : (${TRANSCRIPTION_CONFIG.localChoiceDescription}, cost: free, first run: ${TRANSCRIPTION_CONFIG.firstRunDurationLabel}, later: ${TRANSCRIPTION_CONFIG.subsequentRunDurationLabel})`,
-    description: `Downloads ${TRANSCRIPTION_CONFIG.localModelName} model ${TRANSCRIPTION_CONFIG.localModelDownloadSizeLabel} once.`,
+    description: `Recommended. Downloads ${TRANSCRIPTION_CONFIG.localModelName} model ${TRANSCRIPTION_CONFIG.localModelDownloadSizeLabel} once.`,
   },
   {
     value: "https",
     label:
       `HTTPS : (${TRANSCRIPTION_CONFIG.httpsChoiceDescription}, cost: paid API usage, first run: immediate after key setup, later: network-dependent)`,
-    description: "You can switch to this path once HTTPS transcription support is added.",
+    description: "Uses configured AI provider/API key from setup for cloud transcription.",
   },
 ];
 

@@ -41,7 +41,7 @@ function TranscriptionChoiceScreen(input: {
       </Box>
       <Box marginBottom={1} flexDirection="column">
         <Text color={theme.warning}>
-          Local mode downloads the {TRANSCRIPTION_CONFIG.localModelName} model ({TRANSCRIPTION_CONFIG.localModelDownloadSizeLabel})
+          Recommended: local mode downloads the {TRANSCRIPTION_CONFIG.localModelName} model ({TRANSCRIPTION_CONFIG.localModelDownloadSizeLabel})
           and first setup can take {TRANSCRIPTION_CONFIG.firstRunDurationLabel}.
         </Text>
       </Box>

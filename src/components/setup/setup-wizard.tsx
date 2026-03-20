@@ -1,21 +1,34 @@
 import { Box, Text, useInput } from "ink";
 import { render } from "ink";
+import SelectInput from "ink-select-input";
 import TextInput from "ink-text-input";
 import { useMemo, useState } from "react";
 import { listSupportedLanguages, runInitialSetup } from "../../db/queries.ts";
-import type { ProficiencyLevel, SupportedLanguage } from "../../types/index.ts";
+import type {
+  AIProvider,
+  ProficiencyLevel,
+  SupportedLanguage,
+} from "../../types/index.ts";
 import { StatusBadge } from "../feedback/status-badge.tsx";
 import { AppFrame } from "../layout/app-frame.tsx";
 import { theme } from "../theme/tokens.ts";
 import { LanguageSelect } from "./language-select.tsx";
 import { ProficiencySelect } from "./proficiency-select.tsx";
 
-type SetupStep = "username" | "language" | "proficiency" | "saving";
+type SetupStep =
+  | "username"
+  | "language"
+  | "proficiency"
+  | "provider"
+  | "api_key"
+  | "saving";
 
 type SetupAnswers = {
   username: string;
   languageId: string;
   proficiency: ProficiencyLevel;
+  defaultModel: AIProvider | null;
+  apiKey: string | null;
 };
 
 export async function runSetupFlow(commandName: string): Promise<boolean> {
@@ -61,6 +74,8 @@ function SetupWizard({
     (typeof languages)[number] | null
   >(null);
   const [proficiency, setProficiency] = useState<ProficiencyLevel | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<AIProvider | null>(null);
+  const [providerApiKeyInput, setProviderApiKeyInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   const activeStepIndex = useMemo(() => {
@@ -70,8 +85,12 @@ function SetupWizard({
       case "language":
         return 2;
       case "proficiency":
-      case "saving":
         return 3;
+      case "provider":
+        return 4;
+      case "api_key":
+      case "saving":
+        return 5;
       default:
         return 1;
     }
@@ -83,17 +102,29 @@ function SetupWizard({
     }
   });
 
-  async function handleProficiencySelect(value: ProficiencyLevel) {
+  function handleProficiencySelect(value: ProficiencyLevel) {
     setProficiency(value);
+    setStep("provider");
+  }
+
+  function handleProviderSelect(value: AIProvider) {
+    setSelectedProvider(value);
+    setStep("api_key");
+  }
+
+  async function handleProviderApiKeySubmit(value: string) {
     setIsSaving(true);
     setStep("saving");
-    if (!language) {
+    if (!language || !proficiency || !selectedProvider) {
+      setIsSaving(false);
       return;
     }
     await onSubmit({
       username: username.trim(),
       languageId: language.id,
-      proficiency: value,
+      proficiency,
+      defaultModel: selectedProvider,
+      apiKey: value.trim() ? value.trim() : null,
     });
     setIsSaving(false);
   }
@@ -103,7 +134,7 @@ function SetupWizard({
       title="First-time setup"
       subtitle={`required before "${commandName}"`}
     >
-      <StatusBadge tone="info" label={`Step ${activeStepIndex}/3`} />
+      <StatusBadge tone="info" label={`Step ${activeStepIndex}/5`} />
       <Box marginBottom={1}>
         <Text color={theme.muted}>Press Esc or Ctrl+C to cancel setup.</Text>
       </Box>
@@ -179,6 +210,65 @@ function SetupWizard({
         </Box>
       )}
 
+      {step === "username" || step === "language" || step === "proficiency" ? null : step === "provider" ? (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text color={theme.brand}>
+            Which AI provider should Speekr use (grammar check, vocabulary, language learning)?
+          </Text>
+          <Box marginTop={1}>
+            <SelectInput
+              items={[
+                { label: "OpenAI", value: "openai" as const },
+                { label: "Anthropic", value: "anthropic" as const },
+              ]}
+              onSelect={(item) => {
+                handleProviderSelect(item.value);
+              }}
+              indicatorComponent={({ isSelected }) => (
+                <Text color={isSelected ? theme.accent : theme.muted}>
+                  {isSelected ? "● " : "○ "}
+                </Text>
+              )}
+            />
+          </Box>
+        </Box>
+      ) : (
+        <Box marginBottom={1}>
+          <Text color={theme.brand}>
+            Which AI provider should Speekr use (grammar check, vocabulary, language learning)?{" "}
+          </Text>
+          <Text color={theme.accent}>
+            {selectedProvider === "anthropic" ? "Anthropic" : "OpenAI"}
+          </Text>
+        </Box>
+      )}
+
+      {step === "api_key" ? (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text color={theme.brand}>
+            Enter your {selectedProvider === "anthropic" ? "Anthropic" : "OpenAI"} API key
+          </Text>
+          <Text color={theme.muted}>
+            This input is masked to prevent key leaks in recordings.
+          </Text>
+          <Box>
+            <TextInput
+              value={providerApiKeyInput}
+              mask="*"
+              onChange={setProviderApiKeyInput}
+              onSubmit={handleProviderApiKeySubmit}
+            />
+          </Box>
+        </Box>
+      ) : step === "saving" ? (
+        <Box marginBottom={1}>
+          <Text color={theme.brand}>
+            {selectedProvider === "anthropic" ? "Anthropic" : "OpenAI"} API key{" "}
+          </Text>
+          <Text color={theme.accent}>{obfuscateApiKey(providerApiKeyInput)}</Text>
+        </Box>
+      ) : null}
+
       {step === "saving" && isSaving ? (
         <Box>
           <Text color={theme.success}>Applying setup... </Text>
@@ -189,4 +279,15 @@ function SetupWizard({
       ) : null}
     </AppFrame>
   );
+}
+
+function obfuscateApiKey(key: string) {
+  const trimmed = key.trim();
+  if (!trimmed) {
+    return "Not provided";
+  }
+  if (trimmed.length <= 4) {
+    return "*".repeat(trimmed.length);
+  }
+  return `${"*".repeat(Math.max(4, trimmed.length - 4))}${trimmed.slice(-4)}`;
 }
