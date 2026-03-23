@@ -2,11 +2,13 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type {
   AIProviderInterface,
+  FeedbackInput,
+  SessionFeedback,
   TranscriptionInput,
   TranscriptionOutput,
 } from "../../types/index.ts";
 import { getAudioContentTypeFromPath } from "../../lib/utils.ts";
-import { createCaller } from "./utils.ts";
+import { buildFeedbackPrompt, createCaller, parseSessionFeedback } from "./utils.ts";
 
 export class OpenAIProvider implements AIProviderInterface {
   private readonly caller: ReturnType<typeof createCaller>;
@@ -56,8 +58,48 @@ export class OpenAIProvider implements AIProviderInterface {
       language: input.languageCode ?? null,
     };
   }
+
+  async generateFeedback(input: FeedbackInput): Promise<SessionFeedback> {
+    const response = await this.caller<OpenAIResponse>(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        body: JSON.stringify({
+          model: "gpt-4.1-mini",
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a language coach that always returns strict JSON only.",
+            },
+            {
+              role: "user",
+              content: buildFeedbackPrompt(input),
+            },
+          ],
+        }),
+        headers: {
+          "content-type": "application/json",
+        },
+      }
+    );
+
+    const content = response.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("OpenAI feedback response was empty.");
+    }
+    return parseSessionFeedback(content);
+  }
 }
 
 type OpenAITranscriptionResponse = {
   text?: unknown;
+};
+
+type OpenAIResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
 };

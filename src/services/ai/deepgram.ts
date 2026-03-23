@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import type {
   AIProviderInterface,
+  FeedbackInput,
+  SessionFeedback,
   TranscriptionInput,
   TranscriptionOutput,
 } from "../../types/index.ts";
@@ -55,6 +57,12 @@ export class DeepgramProvider implements AIProviderInterface {
       text: transcript,
       language: input.languageCode ?? null,
     };
+  }
+
+  async generateFeedback(_input: FeedbackInput): Promise<SessionFeedback> {
+    throw new Error(
+      "AI feedback is not supported by the Deepgram provider. Use OpenAI or Anthropic as the default model."
+    );
   }
 }
 

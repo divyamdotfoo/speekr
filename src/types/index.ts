@@ -20,6 +20,41 @@ export type UserSession = {
   wordCount: number | null;
 };
 
+export type SessionFeedbackStatus = "pending" | "completed" | "failed";
+
+export type SentenceRewriteReason =
+  | "grammar"
+  | "word_choice"
+  | "fluency"
+  | "formality";
+
+export type SentenceRewrite = {
+  original: string;
+  improved: string;
+  reason: SentenceRewriteReason;
+};
+
+export type VocabularyInsight = {
+  word: string;
+  meaning: string;
+  example: string;
+};
+
+export type GrammarPatternInsight = {
+  patternType: string;
+  occurrences: number;
+  explanation: string;
+};
+
+export type SessionFeedback = {
+  detectedLanguage: string;
+  confidenceScore: number;
+  sentenceRewrites: SentenceRewrite[];
+  vocabulary: VocabularyInsight[];
+  grammarPatterns: GrammarPatternInsight[];
+  summary: string;
+};
+
 export type SupportedLanguage = {
   id: string;
   code: string;
@@ -79,7 +114,6 @@ export type LoadingProgressEvent = {
 export type TranscriptionResult = {
   text: string;
   language: string | null;
-  transcriptPath: string;
 };
 
 export type AIProvider = "openai" | "anthropic" | "deepgram";
@@ -105,6 +139,14 @@ export type TranscriptionOutput = {
   language: string | null;
 };
 
+export type FeedbackInput = {
+  transcription: string;
+  existingVocabularyWords?: string[];
+  existingGrammarPatternTypes?: string[];
+  proficiency: number;
+};
+
 export interface AIProviderInterface {
   transcribe: (input: TranscriptionInput) => Promise<TranscriptionOutput>;
+  generateFeedback: (input: FeedbackInput) => Promise<SessionFeedback>;
 }

@@ -1,4 +1,3 @@
-import { writeFile } from "node:fs/promises";
 import { getAI } from "../ai/index.ts";
 import type {
   LoadingProgressEvent,
@@ -51,17 +50,6 @@ export async function transcribeRecordingWithAI(input: {
     const result = await ai.transcribe(input.transcription);
     clearInterval(heartbeat);
     input.onLog?.(`${providerLabel} returned a transcription response.`);
-
-    const transcriptPath = toTranscriptPath(input.transcription.audioPath);
-    input.onEvent?.({
-      step: "writing_output",
-      message: "Saving transcript to disk.",
-      percent: 90,
-      isIndeterminate: false,
-      stageLabel: "Saving transcript",
-    });
-    await writeFile(transcriptPath, result.text, "utf8");
-    input.onLog?.(`Saved transcript file: ${transcriptPath}`);
     input.onEvent?.({
       step: "complete",
       message: "Cloud transcription completed successfully.",
@@ -73,13 +61,8 @@ export async function transcribeRecordingWithAI(input: {
     return {
       text: result.text,
       language: result.language,
-      transcriptPath,
     } satisfies TranscriptionResult;
   } finally {
     clearInterval(heartbeat);
   }
-}
-
-function toTranscriptPath(audioPath: string) {
-  return audioPath.replace(/\.[^/.]+$/, ".txt");
 }

@@ -14,33 +14,51 @@ import { runWithLoadingUI } from "../loading/run-with-loading-ui.tsx";
 export async function runTranscriptionProgressScreen(input: {
   audioPath: string;
   languageCode?: string;
+  afterTranscription?: (input: {
+    result: TranscriptionResult;
+    onProgress: (message: string, hint?: string) => void;
+    onLog: (line: string) => void;
+  }) => Promise<void>;
 }) {
   return await runProgressScreen({
     mode: "local",
     audioPath: input.audioPath,
     languageCode: input.languageCode,
+    afterTranscription: input.afterTranscription,
   });
 }
 
 export async function runOpenAITranscriptionProgressScreen(input: {
   audioPath: string;
   languageCode?: string;
+  afterTranscription?: (input: {
+    result: TranscriptionResult;
+    onProgress: (message: string, hint?: string) => void;
+    onLog: (line: string) => void;
+  }) => Promise<void>;
 }) {
   return await runProgressScreen({
     mode: "openai",
     audioPath: input.audioPath,
     languageCode: input.languageCode,
+    afterTranscription: input.afterTranscription,
   });
 }
 
 export async function runDeepgramTranscriptionProgressScreen(input: {
   audioPath: string;
   languageCode?: string;
+  afterTranscription?: (input: {
+    result: TranscriptionResult;
+    onProgress: (message: string, hint?: string) => void;
+    onLog: (line: string) => void;
+  }) => Promise<void>;
 }) {
   return await runProgressScreen({
     mode: "deepgram",
     audioPath: input.audioPath,
     languageCode: input.languageCode,
+    afterTranscription: input.afterTranscription,
   });
 }
 
@@ -48,6 +66,11 @@ function TranscriptionProgressScreen(input: {
   mode: ProgressMode;
   audioPath: string;
   languageCode?: string;
+  afterTranscription?: (input: {
+    result: TranscriptionResult;
+    onProgress: (message: string, hint?: string) => void;
+    onLog: (line: string) => void;
+  }) => Promise<void>;
   onSuccess: (result: TranscriptionResult) => void;
   onError: (error: Error) => void;
 }) {
@@ -55,16 +78,11 @@ function TranscriptionProgressScreen(input: {
 
   useEffect(() => {
     let isMounted = true;
-    const steps =
-      input.mode === "local"
-        ? LOCAL_TRANSCRIPTION_STEPS
-        : CLOUD_TRANSCRIPTION_STEPS;
-
     loading.showLoadingUI({
       title: "Transcribing recording",
       subtitle: "record",
-      steps,
-      initialStep: "starting",
+      steps: TRANSCRIPTION_STEPS,
+      initialStep: "preparing_process",
       message: "Preparing transcription process.",
     });
 
@@ -78,7 +96,7 @@ function TranscriptionProgressScreen(input: {
                 return;
               }
               loading.updateLoadingUI({
-                step: event.step as TranscriptionStep,
+                step: mapTranscriptionProgressStep(event.step),
                 message: event.message,
                 hint: event.hint,
               });
@@ -101,7 +119,7 @@ function TranscriptionProgressScreen(input: {
                 return;
               }
               loading.updateLoadingUI({
-                step: event.step as TranscriptionStep,
+                step: mapTranscriptionProgressStep(event.step),
                 message: event.message,
                 hint: event.hint,
               });
@@ -115,13 +133,40 @@ function TranscriptionProgressScreen(input: {
           });
 
     operation
-      .then((result) => {
+      .then(async (result) => {
         if (!isMounted) {
           return;
         }
+        if (input.afterTranscription) {
+          loading.updateLoadingUI({
+            step: "generating_ai_feedback",
+            message: "Generating AI feedback.",
+          });
+          await input.afterTranscription({
+            result,
+            onProgress(message, hint) {
+              if (!isMounted) {
+                return;
+              }
+              loading.updateLoadingUI({
+                step: "generating_ai_feedback",
+                message,
+                hint,
+              });
+            },
+            onLog(line) {
+              if (!isMounted) {
+                return;
+              }
+              loading.appendLoadingLog(line);
+            },
+          });
+        }
         loading.completeLoadingUI({
           step: "complete",
-          message: "Transcription complete.",
+          message: input.afterTranscription
+            ? "Transcription and feedback complete."
+            : "Transcription complete.",
         });
         setTimeout(() => {
           if (!isMounted) {
@@ -155,22 +200,36 @@ async function runProgressScreen(input: {
   mode: ProgressMode;
   audioPath: string;
   languageCode?: string;
+  afterTranscription?: (input: {
+    result: TranscriptionResult;
+    onProgress: (message: string, hint?: string) => void;
+    onLog: (line: string) => void;
+  }) => Promise<void>;
 }) {
+  const runTranscription =
+    input.mode === "local"
+      ? transcribeRecordingLocally({
+          audioPath: input.audioPath,
+          languageCode: input.languageCode,
+        })
+      : transcribeRecordingWithAI({
+          provider: input.mode,
+          transcription: {
+            audioPath: input.audioPath,
+            languageCode: input.languageCode,
+          },
+        });
+
   if (!process.stdin.isTTY) {
-    if (input.mode === "local") {
-      return await transcribeRecordingLocally({
-        audioPath: input.audioPath,
-        languageCode: input.languageCode,
+    const result = await runTranscription;
+    if (input.afterTranscription) {
+      await input.afterTranscription({
+        result,
+        onProgress: () => undefined,
+        onLog: () => undefined,
       });
     }
-
-    return await transcribeRecordingWithAI({
-      provider: input.mode,
-      transcription: {
-        audioPath: input.audioPath,
-        languageCode: input.languageCode,
-      },
-    });
+    return result;
   }
 
   const controller = createLoadingController<TranscriptionStep>();
@@ -181,6 +240,7 @@ async function runProgressScreen(input: {
         mode={input.mode}
         audioPath={input.audioPath}
         languageCode={input.languageCode}
+        afterTranscription={input.afterTranscription}
         onSuccess={handlers.onSuccess}
         onError={handlers.onError}
       />
@@ -188,30 +248,28 @@ async function runProgressScreen(input: {
   });
 }
 
-const LOCAL_TRANSCRIPTION_STEPS = [
-  { id: "starting", label: "Preparing process" },
-  { id: "loading_model", label: "Loading model" },
-  { id: "transcribing", label: "Transcribing audio" },
-  { id: "writing_output", label: "Saving transcript" },
-  { id: "complete", label: "Completed" },
-] satisfies ReadonlyArray<LoadingStep<TranscriptionStep>>;
-
-const CLOUD_TRANSCRIPTION_STEPS = [
-  { id: "starting", label: "Preparing process" },
-  { id: "uploading_audio", label: "Uploading audio" },
-  { id: "awaiting_provider", label: "Waiting for provider" },
-  { id: "writing_output", label: "Saving transcript" },
+const TRANSCRIPTION_STEPS = [
+  { id: "preparing_process", label: "Preparing process" },
+  { id: "transcribing_audio", label: "Transcribing audio" },
+  { id: "generating_ai_feedback", label: "Generating AI feedback" },
   { id: "complete", label: "Completed" },
 ] satisfies ReadonlyArray<LoadingStep<TranscriptionStep>>;
 
 type ProgressMode = "local" | "openai" | "deepgram";
 type TranscriptionStep =
-  | "starting"
-  | "loading_model"
-  | "transcribing"
-  | "uploading_audio"
-  | "awaiting_provider"
-  | "writing_output"
+  | "preparing_process"
+  | "transcribing_audio"
+  | "generating_ai_feedback"
   | "complete";
 
 const COMPLETION_DELAY_MS = 500;
+
+function mapTranscriptionProgressStep(step: string): TranscriptionStep {
+  if (step === "complete") {
+    return "complete";
+  }
+  if (step === "starting") {
+    return "preparing_process";
+  }
+  return "transcribing_audio";
+}

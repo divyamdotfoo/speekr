@@ -32,9 +32,61 @@ export function createSchema(db: Database.Database) {
       audioDurationMs INTEGER NOT NULL,
       audioFilePath TEXT NOT NULL,
       wordCount INTEGER,
+      confidenceScore INTEGER,
+      feedback_status TEXT NOT NULL DEFAULT 'pending' CHECK (feedback_status IN ('pending', 'completed', 'failed')),
+      feedback_error TEXT,
+      feedback_summary TEXT,
+      detected_language TEXT,
+      feedback_confidence_score INTEGER,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (user_track_id) REFERENCES user_tracks(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS sentence_rewrites (
+      id TEXT PRIMARY KEY,
+      user_session_id TEXT NOT NULL,
+      user_track_id TEXT NOT NULL,
+      original_sentence TEXT NOT NULL,
+      improved_sentence TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_session_id) REFERENCES user_sessions(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_track_id) REFERENCES user_tracks(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS vocabulary (
+      id TEXT PRIMARY KEY,
+      user_track_id TEXT NOT NULL,
+      word TEXT NOT NULL,
+      meaning TEXT NOT NULL,
+      example TEXT NOT NULL,
+      usage_count INTEGER NOT NULL DEFAULT 1,
+      first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_track_id) REFERENCES user_tracks(id) ON DELETE CASCADE,
+      UNIQUE (user_track_id, word)
+    );
+
+    CREATE TABLE IF NOT EXISTS grammar_patterns (
+      id TEXT PRIMARY KEY,
+      user_track_id TEXT NOT NULL,
+      pattern_type TEXT NOT NULL,
+      explanation TEXT NOT NULL,
+      occurrences INTEGER NOT NULL DEFAULT 1,
+      first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_track_id) REFERENCES user_tracks(id) ON DELETE CASCADE,
+      UNIQUE (user_track_id, pattern_type)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sentence_rewrites_user_session_id
+      ON sentence_rewrites(user_session_id);
+    CREATE INDEX IF NOT EXISTS idx_sentence_rewrites_user_track_id
+      ON sentence_rewrites(user_track_id);
+    CREATE INDEX IF NOT EXISTS idx_vocabulary_user_track_id
+      ON vocabulary(user_track_id);
+    CREATE INDEX IF NOT EXISTS idx_grammar_patterns_user_track_id
+      ON grammar_patterns(user_track_id);
 
     CREATE TABLE IF NOT EXISTS configuration (
       openAIKey TEXT,

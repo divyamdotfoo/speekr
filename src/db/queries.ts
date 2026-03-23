@@ -10,6 +10,7 @@ import {
 import type {
   AIProvider,
   Configuration,
+  SessionFeedback,
   ProficiencyLevel,
   SupportedLanguage,
   TranscriptionChoice,
@@ -117,6 +118,146 @@ export function createUserSession(input: {
   ).run(session);
 
   return session;
+}
+
+export function getTrackVocabularyWords(userTrackId: string): string[] {
+  const db = getDatabaseClient();
+  const rows = db
+    .prepare(
+      "SELECT word FROM vocabulary WHERE user_track_id = ? ORDER BY usage_count DESC, word ASC"
+    )
+    .all(userTrackId) as Array<{ word: string }>;
+  return rows.map((row) => row.word);
+}
+
+export function getTrackGrammarPatternTypes(userTrackId: string): string[] {
+  const db = getDatabaseClient();
+  const rows = db
+    .prepare(
+      "SELECT pattern_type FROM grammar_patterns WHERE user_track_id = ? ORDER BY occurrences DESC, pattern_type ASC"
+    )
+    .all(userTrackId) as Array<{ pattern_type: string }>;
+  return rows.map((row) => row.pattern_type);
+}
+
+export function saveSessionFeedback(input: {
+  userSessionId: string;
+  userTrackId: string;
+  feedback: SessionFeedback;
+}) {
+  const db = getDatabaseClient();
+  const writeFeedback = db.transaction(() => {
+    db.prepare(
+      `UPDATE user_sessions
+       SET feedback_status = 'completed',
+           feedback_error = NULL,
+           feedback_summary = ?,
+           detected_language = ?,
+           feedback_confidence_score = ?
+       WHERE id = ?`
+    ).run(
+      input.feedback.summary,
+      input.feedback.detectedLanguage,
+      input.feedback.confidenceScore,
+      input.userSessionId
+    );
+
+    const insertSentenceRewrite = db.prepare(
+      `INSERT INTO sentence_rewrites (
+        id,
+        user_session_id,
+        user_track_id,
+        original_sentence,
+        improved_sentence,
+        reason
+      ) VALUES (?, ?, ?, ?, ?, ?)`
+    );
+    for (const rewrite of input.feedback.sentenceRewrites) {
+      insertSentenceRewrite.run(
+        nanoid(),
+        input.userSessionId,
+        input.userTrackId,
+        rewrite.original,
+        rewrite.improved,
+        rewrite.reason
+      );
+    }
+
+    const upsertVocabulary = db.prepare(
+      `INSERT INTO vocabulary (
+        id,
+        user_track_id,
+        word,
+        meaning,
+        example,
+        usage_count,
+        first_seen_at,
+        last_seen_at
+      ) VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(user_track_id, word) DO UPDATE SET
+        meaning = excluded.meaning,
+        example = excluded.example,
+        usage_count = vocabulary.usage_count + 1,
+        last_seen_at = CURRENT_TIMESTAMP`
+    );
+    for (const vocab of input.feedback.vocabulary) {
+      const normalizedWord = normalizeKey(vocab.word);
+      if (!normalizedWord) {
+        continue;
+      }
+      upsertVocabulary.run(
+        nanoid(),
+        input.userTrackId,
+        normalizedWord,
+        vocab.meaning,
+        vocab.example
+      );
+    }
+
+    const upsertGrammarPattern = db.prepare(
+      `INSERT INTO grammar_patterns (
+        id,
+        user_track_id,
+        pattern_type,
+        explanation,
+        occurrences,
+        first_seen_at,
+        last_seen_at
+      ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(user_track_id, pattern_type) DO UPDATE SET
+        explanation = excluded.explanation,
+        occurrences = grammar_patterns.occurrences + excluded.occurrences,
+        last_seen_at = CURRENT_TIMESTAMP`
+    );
+    for (const pattern of input.feedback.grammarPatterns) {
+      const normalizedPatternType = normalizeKey(pattern.patternType);
+      if (!normalizedPatternType) {
+        continue;
+      }
+      upsertGrammarPattern.run(
+        nanoid(),
+        input.userTrackId,
+        normalizedPatternType,
+        pattern.explanation,
+        Math.max(1, pattern.occurrences)
+      );
+    }
+  });
+
+  writeFeedback();
+}
+
+export function markSessionFeedbackFailed(input: {
+  userSessionId: string;
+  errorMessage: string;
+}) {
+  const db = getDatabaseClient();
+  db.prepare(
+    `UPDATE user_sessions
+     SET feedback_status = 'failed',
+         feedback_error = ?
+     WHERE id = ?`
+  ).run(input.errorMessage, input.userSessionId);
 }
 
 export function saveConfiguration(config: Configuration) {
@@ -343,4 +484,8 @@ function getPrimaryUserId(db: ReturnType<typeof getDatabaseClient>) {
     | { id: string }
     | undefined;
   return row?.id ?? null;
+}
+
+function normalizeKey(value: string) {
+  return value.trim().toLocaleLowerCase();
 }

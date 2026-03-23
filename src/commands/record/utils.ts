@@ -13,19 +13,28 @@ import { renderRecordingSavedScreen } from "../../components/recording/recording
 import { RecordingSessionScreen } from "../../components/recording/recording-session-screen.tsx";
 import {
   createUserSession,
+  getTrackGrammarPatternTypes,
+  getTrackVocabularyWords,
   getPrimaryUser,
   getPrimaryUserTrack,
   getTranscriptionChoice,
+  markSessionFeedbackFailed,
+  saveSessionFeedback,
   setTranscriptionChoice,
 } from "../../db/queries.ts";
 import {
   createRecordSession,
   getFfmpegInstallInstructions,
-  getRecordingQualitySummary,
   resolveFfmpegExecutable as resolveAudioFfmpegExecutable,
 } from "../../services/recording/index.ts";
+import { getAI } from "../../services/ai/index.ts";
 import { RECORDINGS_DIRECTORY_PATH } from "../../db/client.ts";
-import type { RecordSessionResult, TranscriptionChoice } from "../../types/index.ts";
+import type {
+  RecordSessionResult,
+  SessionFeedback,
+  TranscriptionChoice,
+  UserSession,
+} from "../../types/index.ts";
 
 export function resolveFfmpegExecutable() {
   return resolveAudioFfmpegExecutable();
@@ -68,9 +77,7 @@ export async function runInteractiveRecording(
   });
 
   const primaryUser = getPrimaryUser();
-  const primaryTrack = primaryUser
-    ? getPrimaryUserTrack(primaryUser.id)
-    : null;
+  const primaryTrack = primaryUser ? getPrimaryUserTrack(primaryUser.id) : null;
   const languageCode = primaryTrack?.language;
   const transcriptionChoice =
     input?.transcription ?? (await resolveTranscriptionChoiceAfterRecording());
@@ -91,53 +98,47 @@ export async function runInteractiveRecording(
     }
 
     renderRecordingSavedScreen({
-      outputPath: result.outputPath,
-      statusLabel:
+      recordingStatusLabel:
         result.stopReason === "silence_timeout"
           ? "Stopped after prolonged silence"
           : "Capture complete",
-      qualitySummary: getRecordingQualitySummary(),
-      transcriptPath: undefined,
-      transcriptionStatus: "Skipped: transcription mode not selected.",
+      recordingDurationMs: result.durationMs,
+      progressStatusLabel:
+        "Skipped: transcription mode not selected for this recording.",
+      spokenText: null,
+      feedback: null,
+      feedbackError:
+        "Transcription was skipped because no transcription mode was selected.",
     });
     return;
   }
 
-  let transcriptPath: string | undefined;
-  let transcriptionStatus = "Skipped";
   let transcriptText: string | null = null;
   let wordCount: number | null = null;
+  let feedback: SessionFeedback | null = null;
+  let feedbackError: string | null = null;
+  let persistedSession: UserSession | null = null;
   try {
-    const transcript =
-      transcriptionChoice === "local"
-        ? await runTranscriptionProgressScreen({
-            audioPath: result.outputPath,
-            languageCode,
-          })
-        : transcriptionChoice === "openai"
-          ? await runOpenAITranscriptionProgressScreen({
-              audioPath: result.outputPath,
-              languageCode,
-            })
-          : await runDeepgramTranscriptionProgressScreen({
-              audioPath: result.outputPath,
-              languageCode,
-            });
-    transcriptPath = transcript.transcriptPath;
-    transcriptText = transcript.text;
-    wordCount = countWords(transcript.text);
-    transcriptionStatus = `Completed${
-      transcript.language ? ` (${transcript.language})` : ""
-    }`;
+    const transcriptionAndFeedback = await runTranscriptionAndFeedback({
+      transcriptionChoice,
+      audioPath: result.outputPath,
+      languageCode,
+      userTrackId: primaryTrack?.id,
+      proficiency: primaryTrack?.proficiency,
+    });
+    transcriptText = transcriptionAndFeedback.transcript.text;
+    wordCount = countWords(transcriptionAndFeedback.transcript.text);
+    feedback = transcriptionAndFeedback.feedback;
+    feedbackError = transcriptionAndFeedback.feedbackError;
   } catch (error) {
-    transcriptionStatus = `Failed: ${
+    feedbackError = `Transcription failed: ${
       error instanceof Error ? error.message : "Unknown error."
     }`;
   }
 
   if (primaryUser && primaryTrack) {
     try {
-      tryPersistUserSession({
+      persistedSession = tryPersistUserSession({
         userId: primaryUser.id,
         userTrackId: primaryTrack.id,
         transcriptText,
@@ -150,16 +151,127 @@ export async function runInteractiveRecording(
     }
   }
 
+  if (persistedSession && feedback) {
+    try {
+      saveSessionFeedback({
+        userSessionId: persistedSession.id,
+        userTrackId: persistedSession.userTrackId,
+        feedback,
+      });
+    } catch (error) {
+      const detail =
+        error instanceof Error
+          ? error.message
+          : "Unknown feedback persistence error.";
+      feedbackError = `AI feedback failed: ${detail}`;
+      try {
+        markSessionFeedbackFailed({
+          userSessionId: persistedSession.id,
+          errorMessage: detail,
+        });
+      } catch {
+        // Intentionally ignore: post-record summary should still be shown.
+      }
+    }
+  } else if (persistedSession && feedbackError) {
+    try {
+      markSessionFeedbackFailed({
+        userSessionId: persistedSession.id,
+        errorMessage: feedbackError,
+      });
+    } catch {
+      // Intentionally ignore: post-record summary should still be shown.
+    }
+  }
+
   renderRecordingSavedScreen({
-    outputPath: result.outputPath,
-    statusLabel:
+    recordingStatusLabel:
       result.stopReason === "silence_timeout"
         ? "Stopped after prolonged silence"
         : "Capture complete",
-    qualitySummary: getRecordingQualitySummary(),
-    transcriptPath,
-    transcriptionStatus,
+    recordingDurationMs: result.durationMs,
+    progressStatusLabel:
+      feedbackError ??
+      (feedback
+        ? "Transcription and AI feedback completed."
+        : "Transcription completed."),
+    spokenText: transcriptText,
+    feedback,
+    feedbackError,
   });
+}
+
+async function runTranscriptionAndFeedback(input: {
+  transcriptionChoice: Exclude<TranscriptionChoice, null>;
+  audioPath: string;
+  languageCode?: string;
+  userTrackId?: string;
+  proficiency?: number;
+}): Promise<{
+  transcript: { text: string; language: string | null };
+  feedback: SessionFeedback | null;
+  feedbackError: string | null;
+}> {
+  let generatedFeedback: SessionFeedback | null = null;
+  let feedbackError: string | null = null;
+
+  const afterTranscription = async (feedbackInput: {
+    result: { text: string; language: string | null };
+    onProgress: (message: string, hint?: string) => void;
+    onLog: (line: string) => void;
+  }) => {
+    if (!input.userTrackId) {
+      feedbackError = "AI feedback skipped: no user track available.";
+      return;
+    }
+    try {
+      feedbackInput.onProgress(
+        "Preparing existing context for prompt.",
+        "Using saved vocabulary and grammar patterns from this track."
+      );
+      feedbackInput.onLog("Preparing AI feedback context.");
+      const existingVocabularyWords = getTrackVocabularyWords(input.userTrackId);
+      const existingGrammarPatternTypes = getTrackGrammarPatternTypes(
+        input.userTrackId
+      );
+      const ai = getAI();
+      feedbackInput.onProgress("Waiting for AI provider feedback response.");
+      feedbackInput.onLog("Sending transcription for AI feedback analysis.");
+      generatedFeedback = await ai.generateFeedback({
+        transcription: feedbackInput.result.text,
+        existingVocabularyWords,
+        existingGrammarPatternTypes,
+        proficiency: input.proficiency ?? 0,
+      });
+    } catch (error) {
+      const detail =
+        error instanceof Error
+          ? error.message
+          : "Unknown feedback generation error.";
+      feedbackError = `AI feedback failed: ${detail}`;
+    }
+  };
+
+  const transcript =
+    input.transcriptionChoice === "local"
+      ? await runTranscriptionProgressScreen({
+          audioPath: input.audioPath,
+          languageCode: input.languageCode,
+          afterTranscription,
+        })
+      : input.transcriptionChoice === "openai"
+      ? await runOpenAITranscriptionProgressScreen({
+          audioPath: input.audioPath,
+          languageCode: input.languageCode,
+          afterTranscription,
+        })
+      : await runDeepgramTranscriptionProgressScreen({
+          audioPath: input.audioPath,
+          languageCode: input.languageCode,
+          afterTranscription,
+        });
+
+  return { transcript, feedback: generatedFeedback, feedbackError };
 }
 
 function buildRecordingFileName() {
@@ -189,7 +301,7 @@ function tryPersistUserSession(input: {
   audioFilePath: string;
   wordCount: number | null;
 }) {
-  createUserSession(input);
+  return createUserSession(input);
 }
 
 function countWords(text: string): number {

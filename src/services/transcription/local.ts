@@ -310,15 +310,13 @@ export async function transcribeRecordingLocally(input: {
     throw new Error(parsed.error ?? "Transcription failed.");
   }
 
-  const transcriptPath = toTranscriptPath(audioPath);
   onEvent?.({
     step: "writing_output",
-    message: "Saving transcript file.",
+    message: "Finalizing transcription result.",
     percent: 100,
     isIndeterminate: false,
-    stageLabel: "Saving transcript",
+    stageLabel: "Finalizing",
   });
-  await writeFile(transcriptPath, parsed.text, "utf8");
   await writeFile(modelMarkerPath, "ready\n", "utf8");
 
   onEvent?.({
@@ -332,7 +330,6 @@ export async function transcribeRecordingLocally(input: {
   return {
     text: parsed.text,
     language: parsed.language ?? null,
-    transcriptPath,
   } satisfies TranscriptionResult;
 }
 
@@ -546,6 +543,3 @@ type LocalTranscriptionStep =
   | "writing_output"
   | "complete";
 
-function toTranscriptPath(audioPath: string) {
-  return audioPath.replace(/\.[^/.]+$/, ".txt");
-}
