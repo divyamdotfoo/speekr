@@ -7,9 +7,7 @@ import { findUpSync } from "find-up";
 import { DATABASE_DIRECTORY_PATH } from "../../db/client.ts";
 import { TRANSCRIPTION_DEFAULT_MODEL } from "../../constants/index.ts";
 import type {
-  RuntimeSetupEvent,
-  TranscriptionProgressEvent,
-  TranscriptionProgressStep,
+  LoadingProgressEvent,
   TranscriptionResult,
 } from "../../types/index.ts";
 
@@ -24,7 +22,7 @@ export function getTranscriptionHelperScriptPath() {
 }
 
 export async function ensureTranscriptionRuntime(input?: {
-  onEvent?: (event: RuntimeSetupEvent) => void;
+  onEvent?: (event: LoadingProgressEvent) => void;
   onLog?: (line: string) => void;
 }) {
   const onEvent = input?.onEvent;
@@ -32,7 +30,6 @@ export async function ensureTranscriptionRuntime(input?: {
   onEvent?.({
     step: "checking",
     message: "Checking Python runtime and virtual environment.",
-    progressBar: buildProgressBar(null),
     percent: null,
     isIndeterminate: true,
     stageLabel: "Checking runtime",
@@ -54,7 +51,6 @@ export async function ensureTranscriptionRuntime(input?: {
     onEvent?.({
       step: "creating_venv",
       message: "Creating isolated Python environment.",
-      progressBar: buildProgressBar(null),
       percent: null,
       isIndeterminate: true,
       stageLabel: "Creating virtual environment",
@@ -70,7 +66,6 @@ export async function ensureTranscriptionRuntime(input?: {
         onEvent?.({
           step: "creating_venv",
           message: "Creating isolated Python environment.",
-          progressBar: buildProgressBar(percent),
           percent,
           isIndeterminate: percent === null,
           stageLabel: "Creating virtual environment",
@@ -80,7 +75,6 @@ export async function ensureTranscriptionRuntime(input?: {
         onEvent?.({
           step: "creating_venv",
           message: "Creating isolated Python environment.",
-          progressBar: buildProgressBar(null),
           percent: null,
           isIndeterminate: true,
           stageLabel: "Creating virtual environment",
@@ -93,7 +87,6 @@ export async function ensureTranscriptionRuntime(input?: {
     onEvent?.({
       step: "upgrading_pip",
       message: "Upgrading pip in the virtual environment.",
-      progressBar: buildProgressBar(null),
       percent: null,
       isIndeterminate: true,
       stageLabel: "Upgrading pip",
@@ -116,7 +109,6 @@ export async function ensureTranscriptionRuntime(input?: {
         onEvent?.({
           step: "upgrading_pip",
           message: "Upgrading pip in the virtual environment.",
-          progressBar: buildProgressBar(percent),
           percent,
           isIndeterminate: percent === null,
           stageLabel: "Upgrading pip",
@@ -126,7 +118,6 @@ export async function ensureTranscriptionRuntime(input?: {
         onEvent?.({
           step: "upgrading_pip",
           message: "Upgrading pip in the virtual environment.",
-          progressBar: buildProgressBar(null),
           percent: null,
           isIndeterminate: true,
           stageLabel: "Upgrading pip",
@@ -137,7 +128,6 @@ export async function ensureTranscriptionRuntime(input?: {
     onEvent?.({
       step: "installing_packages",
       message: "Installing speech transcription dependencies.",
-      progressBar: buildProgressBar(null),
       percent: null,
       isIndeterminate: true,
       stageLabel: "Installing dependencies",
@@ -153,7 +143,6 @@ export async function ensureTranscriptionRuntime(input?: {
         onEvent?.({
           step: "installing_packages",
           message: "Installing speech transcription dependencies.",
-          progressBar: buildProgressBar(percent),
           percent,
           isIndeterminate: percent === null,
           stageLabel: "Installing dependencies",
@@ -163,7 +152,6 @@ export async function ensureTranscriptionRuntime(input?: {
         onEvent?.({
           step: "installing_packages",
           message: "Installing speech transcription dependencies.",
-          progressBar: buildProgressBar(null),
           percent: null,
           isIndeterminate: true,
           stageLabel: "Installing dependencies",
@@ -178,7 +166,6 @@ export async function ensureTranscriptionRuntime(input?: {
   onEvent?.({
     step: "complete",
     message: "Python transcription runtime is ready.",
-    progressBar: buildProgressBar(100),
     percent: 100,
     isIndeterminate: false,
     stageLabel: "Completed",
@@ -189,7 +176,7 @@ export async function transcribeRecordingLocally(input: {
   audioPath: string;
   model?: string;
   languageCode?: string;
-  onEvent?: (event: TranscriptionProgressEvent) => void;
+  onEvent?: (event: LoadingProgressEvent) => void;
   onLog?: (line: string) => void;
 }) {
   const {
@@ -202,7 +189,6 @@ export async function transcribeRecordingLocally(input: {
   onEvent?.({
     step: "starting",
     message: "Preparing transcription process.",
-    progressBar: buildProgressBar(null),
     percent: null,
     isIndeterminate: true,
     stageLabel: "Preparing process",
@@ -223,7 +209,6 @@ export async function transcribeRecordingLocally(input: {
         onEvent?.({
           step: "starting",
           message: runtimeEvent.message,
-          progressBar: runtimeEvent.progressBar,
           percent: runtimeEvent.percent,
           isIndeterminate: runtimeEvent.isIndeterminate,
           stageLabel: runtimeEvent.stageLabel ?? "Preparing runtime",
@@ -237,7 +222,7 @@ export async function transcribeRecordingLocally(input: {
   await mkdir(TRANSCRIPTION_MODELS_DIRECTORY, { recursive: true });
   const modelMarkerPath = getModelReadyMarkerPath(model);
   const isFirstModelRun = !(await pathExists(modelMarkerPath));
-  let activeProgressStep: TranscriptionProgressStep = "loading_model";
+  let activeProgressStep: LocalTranscriptionStep = "loading_model";
   const loadingHint = isFirstModelRun
     ? "Model loading can take time on first run while files download and warm up."
     : "Model loading can take a little time depending on your machine.";
@@ -259,7 +244,6 @@ export async function transcribeRecordingLocally(input: {
         onEvent?.({
           step: "loading_model",
           message: "Loading model files.",
-          progressBar: buildProgressBar(null),
           percent: null,
           isIndeterminate: true,
           stageLabel: "Loading model",
@@ -271,7 +255,6 @@ export async function transcribeRecordingLocally(input: {
         onEvent?.({
           step: "transcribing",
           message: "Transcribing audio.",
-          progressBar: buildProgressBar(null),
           percent: null,
           isIndeterminate: true,
           stageLabel: "Transcribing audio",
@@ -282,7 +265,6 @@ export async function transcribeRecordingLocally(input: {
         onEvent?.({
           step: "writing_output",
           message: "Saving transcript file.",
-          progressBar: buildProgressBar(null),
           percent: null,
           isIndeterminate: true,
           stageLabel: "Saving transcript",
@@ -299,7 +281,6 @@ export async function transcribeRecordingLocally(input: {
       onEvent?.({
         step: progress.step,
         message: progress.message,
-        progressBar: buildProgressBar(progress.percent),
         percent: progress.percent,
         isIndeterminate:
           progress.percent === null || progress.step === "loading_model",
@@ -333,7 +314,6 @@ export async function transcribeRecordingLocally(input: {
   onEvent?.({
     step: "writing_output",
     message: "Saving transcript file.",
-    progressBar: buildProgressBar(100),
     percent: 100,
     isIndeterminate: false,
     stageLabel: "Saving transcript",
@@ -344,7 +324,6 @@ export async function transcribeRecordingLocally(input: {
   onEvent?.({
     step: "complete",
     message: "Transcription complete.",
-    progressBar: buildProgressBar(100),
     percent: 100,
     isIndeterminate: false,
     stageLabel: "Completed",
@@ -502,17 +481,8 @@ function extractPercentFromLine(line: string) {
   return Math.max(0, Math.min(100, value));
 }
 
-function buildProgressBar(percent: number | null) {
-  const width = 20;
-  if (percent === null) {
-    return `[${"#".repeat(1)}${"-".repeat(width - 1)}]`;
-  }
-  const filled = Math.round((percent / 100) * width);
-  return `[${"#".repeat(filled)}${"-".repeat(Math.max(0, width - filled))}]`;
-}
-
 function parseHelperProgressLine(line: string): {
-  step: TranscriptionProgressStep;
+  step: LocalTranscriptionStep;
   message: string;
   percent: number | null;
 } | null {
@@ -537,7 +507,7 @@ function parseHelperProgressLine(line: string): {
 
 function mapProgressStep(
   stepRaw: string | undefined
-): TranscriptionProgressStep {
+): LocalTranscriptionStep {
   switch (stepRaw) {
     case "loading_model":
       return "loading_model";
@@ -552,7 +522,7 @@ function mapProgressStep(
   }
 }
 
-function getTranscriptionStageLabel(step: TranscriptionProgressStep) {
+function getTranscriptionStageLabel(step: LocalTranscriptionStep) {
   switch (step) {
     case "starting":
       return "Preparing process";
@@ -568,6 +538,13 @@ function getTranscriptionStageLabel(step: TranscriptionProgressStep) {
       return "Working";
   }
 }
+
+type LocalTranscriptionStep =
+  | "starting"
+  | "loading_model"
+  | "transcribing"
+  | "writing_output"
+  | "complete";
 
 function toTranscriptPath(audioPath: string) {
   return audioPath.replace(/\.[^/.]+$/, ".txt");

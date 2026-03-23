@@ -1,20 +1,19 @@
 import { writeFile } from "node:fs/promises";
 import { getAI } from "../ai/index.ts";
 import type {
-  HTTPSTranscriptionProgressEvent,
+  LoadingProgressEvent,
   TranscriptionInput,
   TranscriptionResult,
 } from "../../types/index.ts";
 
 export async function transcribeRecordingWithAI(input: {
   transcription: TranscriptionInput;
-  onEvent?: (event: HTTPSTranscriptionProgressEvent) => void;
+  onEvent?: (event: LoadingProgressEvent) => void;
   onLog?: (line: string) => void;
 }) {
   input.onEvent?.({
     step: "starting",
     message: "Preparing cloud transcription process.",
-    progressBar: "[#-------------------]",
     percent: null,
     isIndeterminate: true,
     stageLabel: "Preparing process",
@@ -24,7 +23,6 @@ export async function transcribeRecordingWithAI(input: {
   input.onEvent?.({
     step: "uploading_audio",
     message: "Uploading audio to OpenAI Whisper.",
-    progressBar: "[#####---------------]",
     percent: null,
     isIndeterminate: true,
     stageLabel: "Uploading audio",
@@ -39,7 +37,6 @@ export async function transcribeRecordingWithAI(input: {
     input.onEvent?.({
       step: "awaiting_provider",
       message: "Waiting for OpenAI to finish transcription.",
-      progressBar: "[############--------]",
       percent: null,
       isIndeterminate: true,
       stageLabel: "Awaiting provider",
@@ -56,7 +53,6 @@ export async function transcribeRecordingWithAI(input: {
     input.onEvent?.({
       step: "writing_output",
       message: "Saving transcript to disk.",
-      progressBar: "[##################--]",
       percent: 90,
       isIndeterminate: false,
       stageLabel: "Saving transcript",
@@ -66,7 +62,6 @@ export async function transcribeRecordingWithAI(input: {
     input.onEvent?.({
       step: "complete",
       message: "Cloud transcription completed successfully.",
-      progressBar: "[####################]",
       percent: 100,
       isIndeterminate: false,
       stageLabel: "Completed",

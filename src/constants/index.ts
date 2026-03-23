@@ -2,6 +2,8 @@ import type { SupportedLanguage } from "../types/index.ts";
 
 export const TRANSCRIPTION_DEFAULT_MODEL = "base";
 
+export const LOG_PANEL_LINES = 6;
+
 export const AUDIO_RECORDING_CONFIG = {
   channels: "1",
   sampleRate: "48000",

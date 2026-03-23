@@ -61,51 +61,9 @@ export type RecordSession = {
   ) => void;
 };
 
-export type RuntimeSetupStep =
-  | "checking"
-  | "creating_venv"
-  | "upgrading_pip"
-  | "installing_packages"
-  | "complete";
-
-export type RuntimeSetupEvent = {
-  step: RuntimeSetupStep;
+export type LoadingProgressEvent = {
+  step: string;
   message: string;
-  progressBar: string;
-  percent: number | null;
-  isIndeterminate?: boolean;
-  stageLabel?: string;
-  hint?: string;
-};
-
-export type TranscriptionProgressStep =
-  | "starting"
-  | "loading_model"
-  | "transcribing"
-  | "writing_output"
-  | "complete";
-
-export type TranscriptionProgressEvent = {
-  step: TranscriptionProgressStep;
-  message: string;
-  progressBar: string;
-  percent: number | null;
-  isIndeterminate?: boolean;
-  stageLabel?: string;
-  hint?: string;
-};
-
-export type HTTPSTranscriptionProgressStep =
-  | "starting"
-  | "uploading_audio"
-  | "awaiting_provider"
-  | "writing_output"
-  | "complete";
-
-export type HTTPSTranscriptionProgressEvent = {
-  step: HTTPSTranscriptionProgressStep;
-  message: string;
-  progressBar: string;
   percent: number | null;
   isIndeterminate?: boolean;
   stageLabel?: string;

@@ -1,23 +1,15 @@
-import { Box, Text, render } from "ink";
-import { useEffect, useState } from "react";
-import { AppFrame } from "../layout/app-frame.tsx";
-import { theme } from "../theme/tokens.ts";
+import { useEffect } from "react";
 import {
   transcribeRecordingLocally,
   transcribeRecordingWithAI,
 } from "../../services/transcription/index.ts";
-import type {
-  HTTPSTranscriptionProgressEvent,
-  TranscriptionProgressEvent,
-  TranscriptionResult,
-} from "../../types/index.ts";
-
-type ProgressMode = "local" | "https";
-type AnyTranscriptionProgressEvent =
-  | TranscriptionProgressEvent
-  | HTTPSTranscriptionProgressEvent;
-
-const LOG_PANEL_LINES = 6;
+import type { TranscriptionResult } from "../../types/index.ts";
+import {
+  createLoadingController,
+  type LoadingStep,
+} from "../loading/loading-controller.ts";
+import { useLoadingController } from "../loading/loading-provider.tsx";
+import { runWithLoadingUI } from "../loading/run-with-loading-ui.tsx";
 
 export async function runTranscriptionProgressScreen(input: {
   audioPath: string;
@@ -41,41 +33,50 @@ export async function runHTTPSTranscriptionProgressScreen(input: {
   });
 }
 
-export function TranscriptionProgressScreen(input: {
+function TranscriptionProgressScreen(input: {
   mode: ProgressMode;
   audioPath: string;
   languageCode?: string;
   onSuccess: (result: TranscriptionResult) => void;
   onError: (error: Error) => void;
 }) {
-  const [event, setEvent] = useState<AnyTranscriptionProgressEvent>(
-    getInitialProgressEvent(input.mode)
-  );
-  const [tick, setTick] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [logs, setLogs] = useState<string[]>([]);
+  const loading = useLoadingController<TranscriptionStep>();
 
   useEffect(() => {
     let isMounted = true;
-    const runTranscription =
+    const steps =
+      input.mode === "local"
+        ? LOCAL_TRANSCRIPTION_STEPS
+        : HTTPS_TRANSCRIPTION_STEPS;
+
+    loading.showLoadingUI({
+      title: "Transcribing recording",
+      subtitle: "record",
+      steps,
+      initialStep: "starting",
+      message: "Preparing transcription process.",
+    });
+
+    const operation =
       input.mode === "local"
         ? transcribeRecordingLocally({
             audioPath: input.audioPath,
             languageCode: input.languageCode,
-            onEvent(nextEvent) {
+            onEvent(event) {
               if (!isMounted) {
                 return;
               }
-              setEvent(nextEvent);
+              loading.updateLoadingUI({
+                step: event.step as TranscriptionStep,
+                message: event.message,
+                hint: event.hint,
+              });
             },
             onLog(line) {
               if (!isMounted) {
                 return;
               }
-              setLogs((current) => {
-                const next = [...current, line];
-                return next.slice(-LOG_PANEL_LINES);
-              });
+              loading.appendLoadingLog(line);
             },
           })
         : transcribeRecordingWithAI({
@@ -83,110 +84,59 @@ export function TranscriptionProgressScreen(input: {
               audioPath: input.audioPath,
               languageCode: input.languageCode,
             },
-            onEvent(nextEvent) {
+            onEvent(event) {
               if (!isMounted) {
                 return;
               }
-              setEvent(nextEvent);
+              loading.updateLoadingUI({
+                step: event.step as TranscriptionStep,
+                message: event.message,
+                hint: event.hint,
+              });
             },
             onLog(line) {
               if (!isMounted) {
                 return;
               }
-              setLogs((current) => {
-                const next = [...current, line];
-                return next.slice(-LOG_PANEL_LINES);
-              });
+              loading.appendLoadingLog(line);
             },
           });
 
-    runTranscription
+    operation
       .then((result) => {
-        if (isMounted) {
-          setTimeout(() => {
-            if (isMounted) {
-              input.onSuccess(result);
-            }
-          }, 500);
+        if (!isMounted) {
+          return;
         }
+        loading.completeLoadingUI({
+          step: "complete",
+          message: "Transcription complete.",
+        });
+        setTimeout(() => {
+          if (!isMounted) {
+            return;
+          }
+          input.onSuccess(result);
+        }, COMPLETION_DELAY_MS);
       })
       .catch((error) => {
-        if (isMounted) {
-          input.onError(error as Error);
+        if (!isMounted) {
+          return;
         }
+        const resolvedError =
+          error instanceof Error ? error : new Error("Transcription failed.");
+        loading.failLoadingUI(resolvedError, {
+          message: resolvedError.message,
+        });
+        input.onError(resolvedError);
       });
 
     return () => {
       isMounted = false;
+      loading.hideLoadingUI();
     };
-  }, [input]);
+  }, [input, loading]);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTick((value) => value + 1);
-    }, 120);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setElapsedSeconds((value) => value + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const checklist = getTranscriptionChecklist(input.mode, event.step);
-  const displayBar = event.isIndeterminate
-    ? buildMarqueeProgressBar(tick)
-    : buildDeterminateProgressBar(event.percent);
-
-  return (
-    <AppFrame title="Transcribing recording" subtitle="record">
-      <Box marginBottom={1}>
-        <Text color={theme.success}>{displayBar}</Text>
-        <Text color={theme.muted}> </Text>
-        <Text color={theme.text}>{event.stageLabel ?? "Working"}</Text>
-        <Text color={theme.muted}>
-          {" "}
-          · Elapsed: {formatClock(elapsedSeconds)}
-        </Text>
-      </Box>
-
-      <Box marginBottom={1}>
-        <Text color={theme.muted}>
-          {event.message}
-          {event.hint ? ` ${event.hint}` : ""}
-        </Text>
-      </Box>
-
-      <Box marginBottom={1} flexDirection="column">
-        {checklist.map((item) => (
-          <Text
-            key={item.id}
-            color={
-              item.state === "done"
-                ? theme.success
-                : item.state === "active"
-                ? theme.text
-                : theme.muted
-            }
-          >
-            {item.state === "done" ? "✓" : item.state === "active" ? "›" : "○"}{" "}
-            {item.label}
-          </Text>
-        ))}
-      </Box>
-
-      <Box flexDirection="column">
-        <Text color={theme.muted}>Live logs</Text>
-        {buildFixedLogLines(logs, LOG_PANEL_LINES).map((line, index) => (
-          <Text key={`${index}-${line}`} color={theme.muted}>
-            {line}
-          </Text>
-        ))}
-      </Box>
-    </AppFrame>
-  );
+  return null;
 }
 
 async function runProgressScreen(input: {
@@ -210,139 +160,45 @@ async function runProgressScreen(input: {
     });
   }
 
-  return await new Promise<TranscriptionResult>((resolve, reject) => {
-    const instance = render(
+  const controller = createLoadingController<TranscriptionStep>();
+  return await runWithLoadingUI<TranscriptionStep, TranscriptionResult>({
+    controller,
+    renderContent: (handlers) => (
       <TranscriptionProgressScreen
         mode={input.mode}
         audioPath={input.audioPath}
         languageCode={input.languageCode}
-        onSuccess={(result) => {
-          instance.unmount();
-          resolve(result);
-        }}
-        onError={(error) => {
-          instance.unmount();
-          reject(error);
-        }}
+        onSuccess={handlers.onSuccess}
+        onError={handlers.onError}
       />
-    );
+    ),
   });
 }
 
-function buildMarqueeProgressBar(tick: number) {
-  const width = 24;
-  const head = tick % width;
-  const chars = new Array<string>(width).fill("-");
-  chars[head] = "#";
-  if (head > 0) {
-    chars[head - 1] = "#";
-  }
-  if (head > 1) {
-    chars[head - 2] = "#";
-  }
-  return `[${chars.join("")}]`;
-}
+const LOCAL_TRANSCRIPTION_STEPS = [
+  { id: "starting", label: "Preparing process" },
+  { id: "loading_model", label: "Loading model" },
+  { id: "transcribing", label: "Transcribing audio" },
+  { id: "writing_output", label: "Saving transcript" },
+  { id: "complete", label: "Completed" },
+] satisfies ReadonlyArray<LoadingStep<TranscriptionStep>>;
 
-function buildDeterminateProgressBar(percent: number | null) {
-  const safePercent = percent ?? 0;
-  const width = 24;
-  const filled = Math.max(1, Math.round((safePercent / 100) * width));
-  return `[${"#".repeat(filled)}${"-".repeat(Math.max(0, width - filled))}]`;
-}
+const HTTPS_TRANSCRIPTION_STEPS = [
+  { id: "starting", label: "Preparing process" },
+  { id: "uploading_audio", label: "Uploading audio" },
+  { id: "awaiting_provider", label: "Waiting for provider" },
+  { id: "writing_output", label: "Saving transcript" },
+  { id: "complete", label: "Completed" },
+] satisfies ReadonlyArray<LoadingStep<TranscriptionStep>>;
 
-function getTranscriptionChecklist(
-  mode: ProgressMode,
-  step: AnyTranscriptionProgressEvent["step"]
-) {
-  if (mode === "local") {
-    const order: TranscriptionProgressEvent["step"][] = [
-      "starting",
-      "loading_model",
-      "transcribing",
-      "writing_output",
-      "complete",
-    ];
-    const labels: Record<TranscriptionProgressEvent["step"], string> = {
-      starting: "Preparing process",
-      loading_model: "Loading model",
-      transcribing: "Transcribing audio",
-      writing_output: "Saving transcript",
-      complete: "Completed",
-    };
+type ProgressMode = "local" | "https";
+type TranscriptionStep =
+  | "starting"
+  | "loading_model"
+  | "transcribing"
+  | "uploading_audio"
+  | "awaiting_provider"
+  | "writing_output"
+  | "complete";
 
-    return mapChecklist(order, labels, step);
-  }
-
-  const order: HTTPSTranscriptionProgressEvent["step"][] = [
-    "starting",
-    "uploading_audio",
-    "awaiting_provider",
-    "writing_output",
-    "complete",
-  ];
-  const labels: Record<HTTPSTranscriptionProgressEvent["step"], string> = {
-    starting: "Preparing process",
-    uploading_audio: "Uploading audio",
-    awaiting_provider: "Waiting for provider",
-    writing_output: "Saving transcript",
-    complete: "Completed",
-  };
-
-  return mapChecklist(order, labels, step);
-}
-
-function mapChecklist<TStep extends string>(
-  order: TStep[],
-  labels: Record<TStep, string>,
-  currentStep: string
-) {
-  const activeIndex = order.indexOf(currentStep as TStep);
-
-  return order.map((id, index) => {
-    if (activeIndex === -1) {
-      return { id, label: labels[id], state: "pending" as const };
-    }
-    if (index < activeIndex || currentStep === "complete") {
-      return { id, label: labels[id], state: "done" as const };
-    }
-    if (index === activeIndex) {
-      return { id, label: labels[id], state: "active" as const };
-    }
-    return { id, label: labels[id], state: "pending" as const };
-  });
-}
-
-function formatClock(totalSeconds: number) {
-  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
-  const seconds = String(totalSeconds % 60).padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
-
-function getInitialProgressEvent(mode: ProgressMode): AnyTranscriptionProgressEvent {
-  if (mode === "local") {
-    return {
-      step: "starting",
-      message: "Preparing transcription process.",
-      progressBar: "[#-------------------]",
-      percent: null,
-      isIndeterminate: true,
-      stageLabel: "Preparing process",
-    };
-  }
-
-  return {
-    step: "starting",
-    message: "Preparing cloud transcription process.",
-    progressBar: "[#-------------------]",
-    percent: null,
-    isIndeterminate: true,
-    stageLabel: "Preparing process",
-  };
-}
-
-function buildFixedLogLines(logs: string[], lineCount: number) {
-  const visible = logs.slice(-lineCount);
-  const padCount = Math.max(0, lineCount - visible.length);
-  const padding = new Array<string>(padCount).fill(" ");
-  return [...padding, ...visible];
-}
+const COMPLETION_DELAY_MS = 500;
