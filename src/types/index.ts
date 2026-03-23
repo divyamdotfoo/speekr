@@ -29,6 +29,7 @@ export type SupportedLanguage = {
 export type Configuration = {
   openAIKey: string | null;
   anthropicKey: string | null;
+  deepgramKey: string | null;
   defaultModel: AIProvider | null;
   transcriptionChoice: TranscriptionChoice;
 };
@@ -81,10 +82,7 @@ export type TranscriptionResult = {
   transcriptPath: string;
 };
 
-export type AIProvider = "openai" | "anthropic";
-
-// Providers available for the REST fetcher factory (includes Deepgram transcription).
-export type AvailableAIProviders = "openai" | "deepgram" | "anthropic";
+export type AIProvider = "openai" | "anthropic" | "deepgram";
 
 export type AIConfig = {
   provider: AIProvider;

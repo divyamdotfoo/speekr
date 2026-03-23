@@ -25,7 +25,7 @@ export function listSupportedLanguages(): SupportedLanguage[] {
     .all() as SupportedLanguage[];
 
   const rankByCode = new Map(
-    SUPPORTED_LANGUAGES.map((language, index) => [language.code, index]),
+    SUPPORTED_LANGUAGES.map((language, index) => [language.code, index])
   );
 
   return rows.sort((a, b) => {
@@ -92,8 +92,14 @@ export function createUserSession(input: {
   audioFilePath: string;
   wordCount: number | null;
 }): UserSession {
-  const { userId, userTrackId, transcriptText, audioDurationMs, audioFilePath, wordCount } =
-    input;
+  const {
+    userId,
+    userTrackId,
+    transcriptText,
+    audioDurationMs,
+    audioFilePath,
+    wordCount,
+  } = input;
   const db = getDatabaseClient();
 
   const session: UserSession = {
@@ -143,12 +149,14 @@ export function getOpenAIKey(): string | null {
   return row?.openAIKey ?? null;
 }
 
-export function setTranscriptionChoice(choice: Exclude<TranscriptionChoice, null>) {
+export function setTranscriptionChoice(
+  choice: Exclude<TranscriptionChoice, null>
+) {
   const db = getDatabaseClient();
   const existingRow = ensureConfigurationRow(db);
 
   db.prepare(
-    "UPDATE configuration SET openAIKey = ?, anthropicKey = ?, defaultModel = ?, transcriptionChoice = ? WHERE rowid = ?",
+    "UPDATE configuration SET openAIKey = ?, anthropicKey = ?, defaultModel = ?, transcriptionChoice = ? WHERE rowid = ?"
   ).run(
     existingRow.openAIKey,
     existingRow.anthropicKey,
@@ -156,7 +164,9 @@ export function setTranscriptionChoice(choice: Exclude<TranscriptionChoice, null
     choice,
     existingRow.rowid
   );
-  db.prepare("DELETE FROM configuration WHERE rowid != ?").run(existingRow.rowid);
+  db.prepare("DELETE FROM configuration WHERE rowid != ?").run(
+    existingRow.rowid
+  );
 }
 
 export function getPrimaryUser(): User | null {
@@ -278,6 +288,7 @@ type ConfigRow = {
   rowid: number;
   openAIKey: string | null;
   anthropicKey: string | null;
+  deepgramKey: string | null;
   defaultModel: AIProvider | null;
   transcriptionChoice: TranscriptionChoice;
 };
@@ -286,12 +297,15 @@ function toConfiguration(row: ConfigRow | null): Configuration {
   return {
     openAIKey: row?.openAIKey ?? null,
     anthropicKey: row?.anthropicKey ?? null,
+    deepgramKey: row?.deepgramKey ?? null,
     defaultModel: row?.defaultModel ?? null,
     transcriptionChoice: row?.transcriptionChoice ?? null,
   };
 }
 
-function readConfigurationRow(db: ReturnType<typeof getDatabaseClient>): ConfigRow | null {
+function readConfigurationRow(
+  db: ReturnType<typeof getDatabaseClient>
+): ConfigRow | null {
   const row = db
     .prepare(
       "SELECT rowid, openAIKey, anthropicKey, defaultModel, transcriptionChoice FROM configuration ORDER BY rowid ASC LIMIT 1"
@@ -300,7 +314,9 @@ function readConfigurationRow(db: ReturnType<typeof getDatabaseClient>): ConfigR
   return row ?? null;
 }
 
-function ensureConfigurationRow(db: ReturnType<typeof getDatabaseClient>): ConfigRow {
+function ensureConfigurationRow(
+  db: ReturnType<typeof getDatabaseClient>
+): ConfigRow {
   const existing = readConfigurationRow(db);
   if (existing) {
     return existing;

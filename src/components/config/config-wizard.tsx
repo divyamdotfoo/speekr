@@ -85,13 +85,16 @@ function ConfigWizard(input: {
 }) {
   const [step, setStep] = useState<ConfigStep>("username");
   const [usernameInput, setUsernameInput] = useState("");
-  const [selectedLanguageId, setSelectedLanguageId] = useState<string | null>(null);
+  const [selectedLanguageId, setSelectedLanguageId] = useState<string | null>(
+    null
+  );
   const [selectedProficiency, setSelectedProficiency] =
     useState<ProficiencyLevel | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<AIProvider | null>(null);
-  const [selectedTranscriptionChoice, setSelectedTranscriptionChoice] = useState<
-    Exclude<TranscriptionChoice, null> | null
-  >(null);
+  const [selectedProvider, setSelectedProvider] = useState<AIProvider | null>(
+    null
+  );
+  const [selectedTranscriptionChoice, setSelectedTranscriptionChoice] =
+    useState<Exclude<TranscriptionChoice, null> | null>(null);
   const [providerApiKeyInput, setProviderApiKeyInput] = useState("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
@@ -118,7 +121,8 @@ function ConfigWizard(input: {
   }, [step]);
 
   const selectedLanguageLabel =
-    input.languages.find((language) => language.id === selectedLanguageId)?.label ??
+    input.languages.find((language) => language.id === selectedLanguageId)
+      ?.label ??
     getCurrentLanguageLabel(input.languages, input.defaults.languageCode);
   const resolvedProvider = selectedProvider ?? input.defaults.provider;
   const resolvedTranscriptionChoice =
@@ -148,8 +152,8 @@ function ConfigWizard(input: {
       trimmedValue.toLowerCase() === "clear"
         ? null
         : trimmedValue
-          ? trimmedValue
-          : existingProviderKey;
+        ? trimmedValue
+        : existingProviderKey;
 
     if (!nextLanguageId) {
       setSaveStatus("idle");
@@ -183,7 +187,9 @@ function ConfigWizard(input: {
       {step === "username" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>What should we call you?</Text>
-          <Text color={theme.muted}>Current: {input.defaults.username || "Not set"}</Text>
+          <Text color={theme.muted}>
+            Current: {input.defaults.username || "Not set"}
+          </Text>
           <Box>
             <Text color={theme.accent}>@ </Text>
             <TextInput
@@ -210,7 +216,11 @@ function ConfigWizard(input: {
             What is the primary language you want to practice?
           </Text>
           <Text color={theme.muted}>
-            Current: {getCurrentLanguageLabel(input.languages, input.defaults.languageCode)}
+            Current:{" "}
+            {getCurrentLanguageLabel(
+              input.languages,
+              input.defaults.languageCode
+            )}
           </Text>
           <Box marginTop={1}>
             <SelectInput
@@ -290,19 +300,27 @@ function ConfigWizard(input: {
         </Box>
       )}
 
-      {step === "username" || step === "language" || step === "proficiency" ? null : step === "provider" ? (
+      {step === "username" ||
+      step === "language" ||
+      step === "proficiency" ? null : step === "provider" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>
-            Which AI provider should Speekr use (grammar check, vocabulary, language learning)?
+            Which AI provider should Speekr use (grammar check, vocabulary,
+            language learning)?
           </Text>
           <Text color={theme.muted}>
-            Current: {input.defaults.provider === "anthropic" ? "Anthropic" : "OpenAI"}
+            Current:{" "}
+            {input.defaults.provider === "anthropic" ? "Anthropic" : "OpenAI"}
           </Text>
           <Box marginTop={1}>
             <SelectInput
               items={[
                 {
-                  label: `Keep current (${input.defaults.provider === "anthropic" ? "Anthropic" : "OpenAI"})`,
+                  label: `Keep current (${
+                    input.defaults.provider === "anthropic"
+                      ? "Anthropic"
+                      : "OpenAI"
+                  })`,
                   value: null as AIProvider | null,
                 },
                 { label: "OpenAI", value: "openai" as const },
@@ -323,7 +341,8 @@ function ConfigWizard(input: {
       ) : (
         <Box marginBottom={1}>
           <Text color={theme.brand}>
-            Which AI provider should Speekr use (grammar check, vocabulary, language learning)?{" "}
+            Which AI provider should Speekr use (grammar check, vocabulary,
+            language learning)?{" "}
           </Text>
           <Text color={theme.accent}>
             {resolvedProvider === "anthropic" ? "Anthropic" : "OpenAI"}
@@ -337,7 +356,8 @@ function ConfigWizard(input: {
       step === "provider" ? null : step === "transcription_choice" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>
-            Which transcription mode should Speekr use by default for recordings?
+            Which transcription mode should Speekr use by default for
+            recordings?
           </Text>
           <Text color={theme.muted}>
             Current:{" "}
@@ -347,7 +367,11 @@ function ConfigWizard(input: {
             <SelectInput
               items={[
                 {
-                  label: `Keep current (${input.defaults.transcriptionChoice === "https" ? "HTTPS" : "Local"})`,
+                  label: `Keep current (${
+                    input.defaults.transcriptionChoice === "https"
+                      ? "HTTPS"
+                      : "Local"
+                  })`,
                   value: null as Exclude<TranscriptionChoice, null> | null,
                 },
                 { label: "Local", value: "local" as const },
@@ -368,7 +392,8 @@ function ConfigWizard(input: {
       ) : (
         <Box marginBottom={1}>
           <Text color={theme.brand}>
-            Which transcription mode should Speekr use by default for recordings?{" "}
+            Which transcription mode should Speekr use by default for
+            recordings?{" "}
           </Text>
           <Text color={theme.accent}>
             {resolvedTranscriptionChoice === "https" ? "HTTPS" : "Local"}
@@ -379,13 +404,16 @@ function ConfigWizard(input: {
       {step === "api_key" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>
-            Enter your {resolvedProvider === "anthropic" ? "Anthropic" : "OpenAI"} API key
+            Enter your{" "}
+            {resolvedProvider === "anthropic" ? "Anthropic" : "OpenAI"} API key
           </Text>
           <Text color={theme.muted}>
-            Current: {obfuscateApiKey(input.defaults.apiKeyByProvider[resolvedProvider])}
+            Current:{" "}
+            {obfuscateApiKey(input.defaults.apiKeyByProvider[resolvedProvider])}
           </Text>
           <Text color={theme.muted}>
-            Press Enter on empty input to keep current key. Type "clear" to remove it.
+            Press Enter on empty input to keep current key. Type "clear" to
+            remove it.
           </Text>
           <Box>
             <TextInput
@@ -406,7 +434,9 @@ function ConfigWizard(input: {
               ? "Cleared"
               : providerApiKeyInput.trim()
               ? obfuscateApiKey(providerApiKeyInput)
-              : `${obfuscateApiKey(input.defaults.apiKeyByProvider[resolvedProvider])} (kept)`}
+              : `${obfuscateApiKey(
+                  input.defaults.apiKeyByProvider[resolvedProvider]
+                )} (kept)`}
           </Text>
         </Box>
       ) : null}
@@ -436,6 +466,7 @@ function readConfigDefaults(): ConfigDefaults {
     apiKeyByProvider: {
       openai: configuration.openAIKey ?? null,
       anthropic: configuration.anthropicKey ?? null,
+      deepgram: configuration.deepgramKey ?? null,
     },
   };
 }
