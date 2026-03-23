@@ -75,7 +75,11 @@ const TRANSCRIPTION_CHOICES: Array<{
       "Local (recommended, free, private, takes 2-3 minutes to setup, uses faster-whisper)",
   },
   {
-    value: "https",
-    label: "HTTPS (0.5$/hour, works without setup, uses OpenAI whisper)",
+    value: "openai",
+    label: "OpenAI (usage-based cost, works without setup, uses OpenAI Whisper)",
+  },
+  {
+    value: "deepgram",
+    label: "Deepgram (usage-based cost, works without setup, uses Deepgram)",
   },
 ];

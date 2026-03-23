@@ -40,8 +40,8 @@ export function createSchema(db: Database.Database) {
       openAIKey TEXT,
       anthropicKey TEXT,
       deepgramKey TEXT,
-      defaultModel TEXT CHECK (defaultModel IN ('openai', 'anthropic', 'deepgram') OR defaultModel IS NULL),
-      transcriptionChoice TEXT CHECK (transcriptionChoice IN ('local', 'https') OR transcriptionChoice IS NULL)
+      defaultModel TEXT CHECK (defaultModel IN ('openai', 'anthropic') OR defaultModel IS NULL),
+      transcriptionChoice TEXT CHECK (transcriptionChoice IN ('local', 'openai', 'deepgram') OR transcriptionChoice IS NULL)
     );
   `);
 

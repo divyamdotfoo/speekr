@@ -35,7 +35,9 @@ type ConfigAnswers = {
   proficiency: ProficiencyLevel;
   defaultModel: AIProvider;
   transcriptionChoice: Exclude<TranscriptionChoice, null>;
-  apiKey: string | null;
+  openAIKey?: string | null;
+  anthropicKey?: string | null;
+  deepgramKey?: string | null;
 };
 
 type ConfigDefaults = {
@@ -95,6 +97,14 @@ function ConfigWizard(input: {
   );
   const [selectedTranscriptionChoice, setSelectedTranscriptionChoice] =
     useState<Exclude<TranscriptionChoice, null> | null>(null);
+
+  type KeyKind = AIProvider;
+  const [keyKindsToCollect, setKeyKindsToCollect] = useState<KeyKind[]>([]);
+  const [keyKindsIndex, setKeyKindsIndex] = useState(0);
+  const [collectedApiKeysByKind, setCollectedApiKeysByKind] = useState<
+    Partial<Record<KeyKind, string | null>>
+  >({});
+
   const [providerApiKeyInput, setProviderApiKeyInput] = useState("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle"
@@ -120,6 +130,14 @@ function ConfigWizard(input: {
     }
   }, [step]);
 
+  const activeKeyKind = keyKindsToCollect[keyKindsIndex];
+  const activeKeyKindLabel =
+    activeKeyKind === "anthropic"
+      ? "Anthropic"
+      : activeKeyKind === "deepgram"
+        ? "Deepgram"
+        : "OpenAI";
+
   const selectedLanguageLabel =
     input.languages.find((language) => language.id === selectedLanguageId)
       ?.label ??
@@ -135,10 +153,36 @@ function ConfigWizard(input: {
   });
 
   async function submitConfig(value: string) {
+    const activeKind = keyKindsToCollect[keyKindsIndex];
+    if (!activeKind) {
+      return;
+    }
+
+    const trimmedValue = value.trim();
+    const nextKeyValue =
+      trimmedValue.toLowerCase() === "clear"
+        ? null
+        : trimmedValue
+          ? trimmedValue
+          : undefined; // undefined => keep current key
+
+    const nextCollected = {
+      ...collectedApiKeysByKind,
+      ...(nextKeyValue === undefined ? {} : { [activeKind]: nextKeyValue }),
+    };
+
+    if (keyKindsIndex < keyKindsToCollect.length - 1) {
+      setCollectedApiKeysByKind(nextCollected);
+      setKeyKindsIndex(keyKindsIndex + 1);
+      setProviderApiKeyInput("");
+      return;
+    }
+
+    setCollectedApiKeysByKind(nextCollected);
     setSaveStatus("saving");
     setStep("saving");
 
-    const nextUsername = value.trim() || input.defaults.username;
+    const nextUsername = usernameInput.trim() || input.defaults.username;
     const fallbackLanguageId =
       resolveLanguageIdByCode(input.languages, input.defaults.languageCode) ??
       input.languages[0]?.id ??
@@ -146,14 +190,6 @@ function ConfigWizard(input: {
     const nextLanguageId = selectedLanguageId ?? fallbackLanguageId;
     const nextProficiency = selectedProficiency ?? input.defaults.proficiency;
     const nextProvider = resolvedProvider;
-    const existingProviderKey = input.defaults.apiKeyByProvider[nextProvider];
-    const trimmedValue = value.trim();
-    const nextApiKey =
-      trimmedValue.toLowerCase() === "clear"
-        ? null
-        : trimmedValue
-        ? trimmedValue
-        : existingProviderKey;
 
     if (!nextLanguageId) {
       setSaveStatus("idle");
@@ -167,8 +203,11 @@ function ConfigWizard(input: {
       proficiency: nextProficiency,
       defaultModel: nextProvider,
       transcriptionChoice: resolvedTranscriptionChoice,
-      apiKey: nextApiKey,
+      openAIKey: nextCollected.openai,
+      anthropicKey: nextCollected.anthropic,
+      deepgramKey: nextCollected.deepgram,
     });
+
     setSaveStatus("saved");
     setTimeout(() => {
       input.onComplete();
@@ -177,7 +216,7 @@ function ConfigWizard(input: {
 
   return (
     <AppFrame title="Update configuration" subtitle="config">
-      <StatusBadge tone="info" label={`Step ${activeStepIndex}/6`} />
+      <StatusBadge tone="info" label={`Step ${activeStepIndex}`} />
       <Box marginBottom={1}>
         <Text color={theme.muted}>
           Press Enter to keep current value. Press Esc or Ctrl+C to cancel.
@@ -361,24 +400,57 @@ function ConfigWizard(input: {
           </Text>
           <Text color={theme.muted}>
             Current:{" "}
-            {input.defaults.transcriptionChoice === "https" ? "HTTPS" : "Local"}
+            {input.defaults.transcriptionChoice === "local"
+              ? "Local"
+              : input.defaults.transcriptionChoice === "openai"
+                ? "OpenAI"
+                : "Deepgram"}
           </Text>
           <Box marginTop={1}>
             <SelectInput
               items={[
                 {
                   label: `Keep current (${
-                    input.defaults.transcriptionChoice === "https"
-                      ? "HTTPS"
-                      : "Local"
+                    input.defaults.transcriptionChoice === "local"
+                      ? "Local"
+                      : input.defaults.transcriptionChoice === "openai"
+                        ? "OpenAI"
+                        : "Deepgram"
                   })`,
                   value: null as Exclude<TranscriptionChoice, null> | null,
                 },
                 { label: "Local", value: "local" as const },
-                { label: "HTTPS", value: "https" as const },
+                { label: "OpenAI", value: "openai" as const },
+                { label: "Deepgram", value: "deepgram" as const },
               ]}
               onSelect={(item) => {
                 setSelectedTranscriptionChoice(item.value);
+
+                // Prepare which API keys we need to ask for next.
+                const nextChoice =
+                  (item.value ?? input.defaults.transcriptionChoice) as Exclude<
+                    TranscriptionChoice,
+                    null
+                  >;
+                const kinds: KeyKind[] = [];
+                if (resolvedProvider === "openai") {
+                  kinds.push("openai");
+                } else if (resolvedProvider === "anthropic") {
+                  kinds.push("anthropic");
+                }
+
+                if (nextChoice === "openai" && !kinds.includes("openai")) {
+                  kinds.push("openai");
+                }
+                if (nextChoice === "deepgram" && !kinds.includes("deepgram")) {
+                  kinds.push("deepgram");
+                }
+
+                setKeyKindsToCollect(kinds);
+                setKeyKindsIndex(0);
+                setCollectedApiKeysByKind({});
+                setProviderApiKeyInput("");
+                setSaveStatus("idle");
                 setStep("api_key");
               }}
               indicatorComponent={({ isSelected }) => (
@@ -396,7 +468,11 @@ function ConfigWizard(input: {
             recordings?{" "}
           </Text>
           <Text color={theme.accent}>
-            {resolvedTranscriptionChoice === "https" ? "HTTPS" : "Local"}
+            {resolvedTranscriptionChoice === "local"
+              ? "Local"
+              : resolvedTranscriptionChoice === "openai"
+                ? "OpenAI"
+                : "Deepgram"}
           </Text>
         </Box>
       )}
@@ -404,12 +480,13 @@ function ConfigWizard(input: {
       {step === "api_key" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>
-            Enter your{" "}
-            {resolvedProvider === "anthropic" ? "Anthropic" : "OpenAI"} API key
+            Enter your {activeKeyKindLabel} API key
           </Text>
           <Text color={theme.muted}>
             Current:{" "}
-            {obfuscateApiKey(input.defaults.apiKeyByProvider[resolvedProvider])}
+            {activeKeyKind
+              ? obfuscateApiKey(input.defaults.apiKeyByProvider[activeKeyKind])
+              : "Not set"}
           </Text>
           <Text color={theme.muted}>
             Press Enter on empty input to keep current key. Type "clear" to
@@ -427,7 +504,7 @@ function ConfigWizard(input: {
       ) : step === "saving" ? (
         <Box marginBottom={1}>
           <Text color={theme.brand}>
-            {resolvedProvider === "anthropic" ? "Anthropic" : "OpenAI"} API key{" "}
+            {activeKeyKindLabel} API key{" "}
           </Text>
           <Text color={theme.accent}>
             {providerApiKeyInput.trim().toLowerCase() === "clear"
@@ -435,7 +512,9 @@ function ConfigWizard(input: {
               : providerApiKeyInput.trim()
               ? obfuscateApiKey(providerApiKeyInput)
               : `${obfuscateApiKey(
-                  input.defaults.apiKeyByProvider[resolvedProvider]
+                  activeKeyKind
+                    ? input.defaults.apiKeyByProvider[activeKeyKind]
+                    : null
                 )} (kept)`}
           </Text>
         </Box>

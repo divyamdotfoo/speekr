@@ -22,12 +22,23 @@ export async function runTranscriptionProgressScreen(input: {
   });
 }
 
-export async function runHTTPSTranscriptionProgressScreen(input: {
+export async function runOpenAITranscriptionProgressScreen(input: {
   audioPath: string;
   languageCode?: string;
 }) {
   return await runProgressScreen({
-    mode: "https",
+    mode: "openai",
+    audioPath: input.audioPath,
+    languageCode: input.languageCode,
+  });
+}
+
+export async function runDeepgramTranscriptionProgressScreen(input: {
+  audioPath: string;
+  languageCode?: string;
+}) {
+  return await runProgressScreen({
+    mode: "deepgram",
     audioPath: input.audioPath,
     languageCode: input.languageCode,
   });
@@ -47,7 +58,7 @@ function TranscriptionProgressScreen(input: {
     const steps =
       input.mode === "local"
         ? LOCAL_TRANSCRIPTION_STEPS
-        : HTTPS_TRANSCRIPTION_STEPS;
+        : CLOUD_TRANSCRIPTION_STEPS;
 
     loading.showLoadingUI({
       title: "Transcribing recording",
@@ -80,6 +91,7 @@ function TranscriptionProgressScreen(input: {
             },
           })
         : transcribeRecordingWithAI({
+            provider: input.mode,
             transcription: {
               audioPath: input.audioPath,
               languageCode: input.languageCode,
@@ -153,6 +165,7 @@ async function runProgressScreen(input: {
     }
 
     return await transcribeRecordingWithAI({
+      provider: input.mode,
       transcription: {
         audioPath: input.audioPath,
         languageCode: input.languageCode,
@@ -183,7 +196,7 @@ const LOCAL_TRANSCRIPTION_STEPS = [
   { id: "complete", label: "Completed" },
 ] satisfies ReadonlyArray<LoadingStep<TranscriptionStep>>;
 
-const HTTPS_TRANSCRIPTION_STEPS = [
+const CLOUD_TRANSCRIPTION_STEPS = [
   { id: "starting", label: "Preparing process" },
   { id: "uploading_audio", label: "Uploading audio" },
   { id: "awaiting_provider", label: "Waiting for provider" },
@@ -191,7 +204,7 @@ const HTTPS_TRANSCRIPTION_STEPS = [
   { id: "complete", label: "Completed" },
 ] satisfies ReadonlyArray<LoadingStep<TranscriptionStep>>;
 
-type ProgressMode = "local" | "https";
+type ProgressMode = "local" | "openai" | "deepgram";
 type TranscriptionStep =
   | "starting"
   | "loading_model"

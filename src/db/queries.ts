@@ -217,16 +217,12 @@ export function runInitialSetup(input: {
   proficiency: ProficiencyLevel;
   defaultModel: AIProvider | null;
   transcriptionChoice: Exclude<TranscriptionChoice, null>;
-  apiKey: string | null;
+  openAIKey?: string | null;
+  anthropicKey?: string | null;
+  deepgramKey?: string | null;
 }): { user: User; track: UserTrack } {
-  const {
-    username,
-    languageId,
-    proficiency,
-    defaultModel,
-    transcriptionChoice,
-    apiKey,
-  } = input;
+  const { username, languageId, proficiency, defaultModel } = input;
+  const { transcriptionChoice } = input;
   const db = getDatabaseClient();
 
   const userId = getPrimaryUserId(db) ?? nanoid();
@@ -259,17 +255,26 @@ export function runInitialSetup(input: {
 
     const existingConfig = ensureConfigurationRow(db);
 
+    // Only overwrite keys explicitly provided by the wizard.
+    // `undefined` means "keep current value"; `null` means "clear it".
     const nextOpenAIKey =
-      defaultModel === "openai" ? apiKey : existingConfig.openAIKey;
+      input.openAIKey !== undefined ? input.openAIKey : existingConfig.openAIKey;
     const nextAnthropicKey =
-      defaultModel === "anthropic" ? apiKey : existingConfig.anthropicKey;
+      input.anthropicKey !== undefined
+        ? input.anthropicKey
+        : existingConfig.anthropicKey;
+    const nextDeepgramKey =
+      input.deepgramKey !== undefined
+        ? input.deepgramKey
+        : existingConfig.deepgramKey;
     const nextDefaultModel = defaultModel ?? existingConfig.defaultModel;
 
     db.prepare(
-      "UPDATE configuration SET openAIKey = ?, anthropicKey = ?, defaultModel = ?, transcriptionChoice = ? WHERE rowid = ?"
+      "UPDATE configuration SET openAIKey = ?, anthropicKey = ?, deepgramKey = ?, defaultModel = ?, transcriptionChoice = ? WHERE rowid = ?"
     ).run(
       nextOpenAIKey,
       nextAnthropicKey,
+      nextDeepgramKey,
       nextDefaultModel,
       transcriptionChoice,
       existingConfig.rowid
@@ -308,7 +313,7 @@ function readConfigurationRow(
 ): ConfigRow | null {
   const row = db
     .prepare(
-      "SELECT rowid, openAIKey, anthropicKey, defaultModel, transcriptionChoice FROM configuration ORDER BY rowid ASC LIMIT 1"
+      "SELECT rowid, openAIKey, anthropicKey, deepgramKey, defaultModel, transcriptionChoice FROM configuration ORDER BY rowid ASC LIMIT 1"
     )
     .get() as ConfigRow | undefined;
   return row ?? null;

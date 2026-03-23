@@ -13,7 +13,6 @@ const logoLines = [
 const commands = [
   { name: "start", description: "Start the application" },
   { name: "setup", description: "Run guided setup" },
-  { name: "config", description: "Update saved configuration" },
   { name: "record", description: "Start a new learning session" },
   { name: "list", description: "List learning sessions" },
   { name: "reset", description: "Delete local database and recordings" },

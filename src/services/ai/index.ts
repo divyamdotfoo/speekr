@@ -6,6 +6,7 @@ import type {
 } from "../../types/index.ts";
 import { getConfiguration } from "../../db/queries.ts";
 import { AnthropicProvider } from "./anthropic.ts";
+import { DeepgramProvider } from "./deepgram.ts";
 import { OpenAIProvider } from "./openai.ts";
 
 let aiInstance: AIProviderInterface | null = null;
@@ -32,6 +33,10 @@ function loadProvider(config: AIConfig): AIProviderInterface {
     return new AnthropicProvider(config.anthropicKey ?? null);
   }
 
+  if (config.provider === "deepgram") {
+    return new DeepgramProvider(config.deepgramKey ?? null);
+  }
+
   throw new Error(`Unsupported AI provider "${config.provider}".`);
 }
 
@@ -46,11 +51,12 @@ function resolveAIConfig(params?: AIRequestParams): AIConfig {
     provider,
     openAIKey: configuration.openAIKey,
     anthropicKey: configuration.anthropicKey,
+    deepgramKey: configuration.deepgramKey,
   };
 }
 
 function buildConfigFingerprint(config: AIConfig) {
   return `${config.provider}|${config.openAIKey ?? ""}|${
     config.anthropicKey ?? ""
-  }`;
+  }|${config.deepgramKey ?? ""}`;
 }

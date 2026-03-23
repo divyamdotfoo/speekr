@@ -5,7 +5,8 @@ import { createElement } from "react";
 import { renderCommandScreen } from "../../components/layout/command-screen.tsx";
 import { runTranscriptionChoiceScreen } from "../../components/recording/transcription-choice-screen.tsx";
 import {
-  runHTTPSTranscriptionProgressScreen,
+  runDeepgramTranscriptionProgressScreen,
+  runOpenAITranscriptionProgressScreen,
   runTranscriptionProgressScreen,
 } from "../../components/recording/transcription-progress-screen.tsx";
 import { renderRecordingSavedScreen } from "../../components/recording/recording-saved-screen.tsx";
@@ -113,10 +114,15 @@ export async function runInteractiveRecording(
             audioPath: result.outputPath,
             languageCode,
           })
-        : await runHTTPSTranscriptionProgressScreen({
-            audioPath: result.outputPath,
-            languageCode,
-          });
+        : transcriptionChoice === "openai"
+          ? await runOpenAITranscriptionProgressScreen({
+              audioPath: result.outputPath,
+              languageCode,
+            })
+          : await runDeepgramTranscriptionProgressScreen({
+              audioPath: result.outputPath,
+              languageCode,
+            });
     transcriptPath = transcript.transcriptPath;
     transcriptText = transcript.text;
     wordCount = countWords(transcript.text);

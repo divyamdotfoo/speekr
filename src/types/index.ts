@@ -36,7 +36,7 @@ export type Configuration = {
 
 // Stored as a numeric 1..10 rating. UI + DB CHECK constraint enforce bounds.
 export type ProficiencyLevel = number;
-export type TranscriptionChoice = "local" | "https" | null;
+export type TranscriptionChoice = "local" | "openai" | "deepgram" | null;
 
 export type StopReason = "user" | "silence_timeout";
 
@@ -88,6 +88,7 @@ export type AIConfig = {
   provider: AIProvider;
   openAIKey?: string | null;
   anthropicKey?: string | null;
+  deepgramKey?: string | null;
 };
 
 export type AIRequestParams = {

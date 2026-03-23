@@ -14,7 +14,7 @@ export const registerRecordCommand: CommandRegistrar = (program: Command) => {
     .description("Start a new learning session")
     .option(
       "-t, --transcription <mode>",
-      "Override transcription mode for this run (local|https)",
+      "Override transcription mode for this run (local|openai|deepgram)",
       parseTranscriptionMode
     )
     .action(
@@ -59,11 +59,11 @@ export const registerRecordCommand: CommandRegistrar = (program: Command) => {
 
 function parseTranscriptionMode(value: string): Exclude<TranscriptionChoice, null> {
   const normalized = value.trim().toLowerCase();
-  if (normalized === "local" || normalized === "https") {
+  if (normalized === "local" || normalized === "openai" || normalized === "deepgram") {
     return normalized;
   }
 
   throw new InvalidArgumentError(
-    'Transcription mode must be "local" or "https".'
+    'Transcription mode must be "local", "openai", or "deepgram".'
   );
 }

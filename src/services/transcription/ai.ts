@@ -8,9 +8,12 @@ import type {
 
 export async function transcribeRecordingWithAI(input: {
   transcription: TranscriptionInput;
+  provider: "openai" | "deepgram";
   onEvent?: (event: LoadingProgressEvent) => void;
   onLog?: (line: string) => void;
 }) {
+  const providerLabel = input.provider === "openai" ? "OpenAI" : "Deepgram";
+
   input.onEvent?.({
     step: "starting",
     message: "Preparing cloud transcription process.",
@@ -18,25 +21,25 @@ export async function transcribeRecordingWithAI(input: {
     isIndeterminate: true,
     stageLabel: "Preparing process",
   });
-  input.onLog?.("Preparing OpenAI Whisper transcription.");
+  input.onLog?.(`Preparing ${providerLabel} transcription.`);
 
   input.onEvent?.({
     step: "uploading_audio",
-    message: "Uploading audio to OpenAI Whisper.",
+    message: `Uploading audio to ${providerLabel}.`,
     percent: null,
     isIndeterminate: true,
     stageLabel: "Uploading audio",
     hint: "Upload duration depends on file size and network speed.",
   });
-  input.onLog?.("Uploading audio file to OpenAI Whisper API.");
+  input.onLog?.(`Uploading audio file to ${providerLabel} API.`);
 
-  const ai = getAI({ provider: "openai" });
+  const ai = getAI({ provider: input.provider });
   const startedAt = Date.now();
   const heartbeat = setInterval(() => {
     const elapsed = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
     input.onEvent?.({
       step: "awaiting_provider",
-      message: "Waiting for OpenAI to finish transcription.",
+      message: `Waiting for ${providerLabel} to finish transcription.`,
       percent: null,
       isIndeterminate: true,
       stageLabel: "Awaiting provider",
@@ -47,7 +50,7 @@ export async function transcribeRecordingWithAI(input: {
   try {
     const result = await ai.transcribe(input.transcription);
     clearInterval(heartbeat);
-    input.onLog?.("OpenAI returned a transcription response.");
+    input.onLog?.(`${providerLabel} returned a transcription response.`);
 
     const transcriptPath = toTranscriptPath(input.transcription.audioPath);
     input.onEvent?.({
