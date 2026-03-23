@@ -19,7 +19,7 @@ export function createSchema(db: Database.Database) {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       language_id TEXT NOT NULL,
-      proficiency TEXT NOT NULL,
+      proficiency INTEGER NOT NULL CHECK (proficiency BETWEEN 1 AND 10),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (language_id) REFERENCES supported_languages(id) ON DELETE RESTRICT
     );
@@ -28,6 +28,10 @@ export function createSchema(db: Database.Database) {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       user_track_id TEXT NOT NULL,
+      transcriptText TEXT,
+      audioDurationMs INTEGER NOT NULL,
+      audioFilePath TEXT NOT NULL,
+      wordCount INTEGER,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (user_track_id) REFERENCES user_tracks(id) ON DELETE CASCADE
     );

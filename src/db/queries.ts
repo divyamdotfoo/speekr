@@ -87,18 +87,27 @@ export function createUserTrack(input: {
 export function createUserSession(input: {
   userId: string;
   userTrackId: string;
+  transcriptText: string | null;
+  audioDurationMs: number;
+  audioFilePath: string;
+  wordCount: number | null;
 }): UserSession {
-  const { userId, userTrackId } = input;
+  const { userId, userTrackId, transcriptText, audioDurationMs, audioFilePath, wordCount } =
+    input;
   const db = getDatabaseClient();
 
   const session: UserSession = {
     id: nanoid(),
     userId,
     userTrackId,
+    transcriptText,
+    audioDurationMs,
+    audioFilePath,
+    wordCount,
   };
 
   db.prepare(
-    "INSERT INTO user_sessions (id, user_id, user_track_id) VALUES (@id, @userId, @userTrackId)"
+    "INSERT INTO user_sessions (id, user_id, user_track_id, transcriptText, audioDurationMs, audioFilePath, wordCount) VALUES (@id, @userId, @userTrackId, @transcriptText, @audioDurationMs, @audioFilePath, @wordCount)"
   ).run(session);
 
   return session;

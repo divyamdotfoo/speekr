@@ -11,6 +11,7 @@ import {
 import { renderRecordingSavedScreen } from "../../components/recording/recording-saved-screen.tsx";
 import { RecordingSessionScreen } from "../../components/recording/recording-session-screen.tsx";
 import {
+  createUserSession,
   getPrimaryUser,
   getPrimaryUserTrack,
   getTranscriptionChoice,
@@ -65,10 +66,29 @@ export async function runInteractiveRecording(
       });
   });
 
-  const languageCode = resolvePreferredLanguageCode();
+  const primaryUser = getPrimaryUser();
+  const primaryTrack = primaryUser
+    ? getPrimaryUserTrack(primaryUser.id)
+    : null;
+  const languageCode = primaryTrack?.language;
   const transcriptionChoice =
     input?.transcription ?? (await resolveTranscriptionChoiceAfterRecording());
   if (transcriptionChoice === null) {
+    if (primaryUser && primaryTrack) {
+      try {
+        tryPersistUserSession({
+          userId: primaryUser.id,
+          userTrackId: primaryTrack.id,
+          transcriptText: null,
+          audioDurationMs: result.durationMs,
+          audioFilePath: result.outputPath,
+          wordCount: null,
+        });
+      } catch {
+        // Intentionally ignore: recording should not be blocked by DB writes.
+      }
+    }
+
     renderRecordingSavedScreen({
       outputPath: result.outputPath,
       statusLabel:
@@ -84,6 +104,8 @@ export async function runInteractiveRecording(
 
   let transcriptPath: string | undefined;
   let transcriptionStatus = "Skipped";
+  let transcriptText: string | null = null;
+  let wordCount: number | null = null;
   try {
     const transcript =
       transcriptionChoice === "local"
@@ -96,6 +118,8 @@ export async function runInteractiveRecording(
             languageCode,
           });
     transcriptPath = transcript.transcriptPath;
+    transcriptText = transcript.text;
+    wordCount = countWords(transcript.text);
     transcriptionStatus = `Completed${
       transcript.language ? ` (${transcript.language})` : ""
     }`;
@@ -103,6 +127,21 @@ export async function runInteractiveRecording(
     transcriptionStatus = `Failed: ${
       error instanceof Error ? error.message : "Unknown error."
     }`;
+  }
+
+  if (primaryUser && primaryTrack) {
+    try {
+      tryPersistUserSession({
+        userId: primaryUser.id,
+        userTrackId: primaryTrack.id,
+        transcriptText,
+        audioDurationMs: result.durationMs,
+        audioFilePath: result.outputPath,
+        wordCount,
+      });
+    } catch {
+      // Intentionally ignore: recording should not be blocked by DB writes.
+    }
   }
 
   renderRecordingSavedScreen({
@@ -122,15 +161,6 @@ function buildRecordingFileName() {
   return `recording-${stamp}.wav`;
 }
 
-function resolvePreferredLanguageCode() {
-  const primaryUser = getPrimaryUser();
-  if (!primaryUser) {
-    return undefined;
-  }
-  const track = getPrimaryUserTrack(primaryUser.id);
-  return track?.language;
-}
-
 async function resolveTranscriptionChoiceAfterRecording() {
   const current = getTranscriptionChoice();
   if (current) {
@@ -143,4 +173,23 @@ async function resolveTranscriptionChoiceAfterRecording() {
   }
   setTranscriptionChoice(selected);
   return selected;
+}
+
+function tryPersistUserSession(input: {
+  userId: string;
+  userTrackId: string;
+  transcriptText: string | null;
+  audioDurationMs: number;
+  audioFilePath: string;
+  wordCount: number | null;
+}) {
+  createUserSession(input);
+}
+
+function countWords(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return 0;
+  }
+  return trimmed.split(/\s+/).length;
 }

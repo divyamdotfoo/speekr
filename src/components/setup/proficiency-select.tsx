@@ -3,11 +3,11 @@ import SelectInput from "ink-select-input";
 import type { ProficiencyLevel } from "../../types/index.ts";
 import { theme } from "../theme/tokens.ts";
 
-const proficiencyOptions: Array<{ label: string; value: ProficiencyLevel }> = [
-  { label: "Beginner - building fundamentals", value: "beginner" },
-  { label: "Intermediate - conversational and practical", value: "intermediate" },
-  { label: "Advanced - fluent and nuanced", value: "advanced" },
-];
+const proficiencyOptions: Array<{ label: string; value: ProficiencyLevel }> =
+  Array.from({ length: 10 }, (_, i) => {
+    const value = i + 1;
+    return { label: String(value), value };
+  });
 
 export function ProficiencySelect({
   onSelect,

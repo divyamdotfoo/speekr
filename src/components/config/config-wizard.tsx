@@ -252,7 +252,7 @@ function ConfigWizard(input: {
         "proficiency" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>
-            What is your current proficiency in this language?
+            Rate your proficiency in this language between 1 and 10.
           </Text>
           <Text color={theme.muted}>Current: {input.defaults.proficiency}</Text>
           <Box marginTop={1}>
@@ -260,11 +260,12 @@ function ConfigWizard(input: {
               items={[
                 {
                   label: `Keep current (${input.defaults.proficiency})`,
-                  value: null as ProficiencyLevel | null,
+                  value: null as number | null,
                 },
-                { label: "beginner", value: "beginner" as const },
-                { label: "intermediate", value: "intermediate" as const },
-                { label: "advanced", value: "advanced" as const },
+                ...Array.from({ length: 10 }, (_, i) => {
+                  const value = i + 1;
+                  return { label: String(value), value };
+                }),
               ]}
               onSelect={(item) => {
                 setSelectedProficiency(item.value);
@@ -429,7 +430,7 @@ function readConfigDefaults(): ConfigDefaults {
   return {
     username: primaryUser?.name ?? "",
     languageCode: primaryTrack?.language ?? null,
-    proficiency: primaryTrack?.proficiency ?? "beginner",
+    proficiency: primaryTrack?.proficiency ?? 1,
     provider: configuration.defaultModel ?? "openai",
     transcriptionChoice: configuration.transcriptionChoice ?? "local",
     apiKeyByProvider: {

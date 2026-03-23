@@ -219,7 +219,7 @@ function SetupWizard({
         "proficiency" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>
-            What is your current proficiency in this language?
+            What is your current proficiency in this language? Rate from 1 to 10.
           </Text>
           <Text color={theme.muted}>
             Selected language: {language?.label} ({language?.code})
@@ -231,7 +231,7 @@ function SetupWizard({
       ) : (
         <Box marginBottom={1}>
           <Text color={theme.brand}>
-            What is your current proficiency in this language?{" "}
+            What is your current proficiency in this language? Rate from 1 to 10.{" "}
           </Text>
           <Text color={theme.accent}>{proficiency}</Text>
         </Box>

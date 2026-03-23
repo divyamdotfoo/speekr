@@ -14,6 +14,10 @@ export type UserSession = {
   id: string;
   userId: string;
   userTrackId: string;
+  transcriptText: string | null;
+  audioDurationMs: number;
+  audioFilePath: string;
+  wordCount: number | null;
 };
 
 export type SupportedLanguage = {
@@ -29,7 +33,8 @@ export type Configuration = {
   transcriptionChoice: TranscriptionChoice;
 };
 
-export type ProficiencyLevel = "beginner" | "intermediate" | "advanced";
+// Stored as a numeric 1..10 rating. UI + DB CHECK constraint enforce bounds.
+export type ProficiencyLevel = number;
 export type TranscriptionChoice = "local" | "https" | null;
 
 export type StopReason = "user" | "silence_timeout";
@@ -77,6 +82,9 @@ export type TranscriptionResult = {
 };
 
 export type AIProvider = "openai" | "anthropic";
+
+// Providers available for the REST fetcher factory (includes Deepgram transcription).
+export type AvailableAIProviders = "openai" | "deepgram" | "anthropic";
 
 export type AIConfig = {
   provider: AIProvider;
