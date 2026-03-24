@@ -3,8 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { AppFrame } from "../layout/app-frame.tsx";
 import { theme } from "../theme/tokens.ts";
 import type { RecordSession } from "../../types/index.ts";
+import { RECORDING_SILENCE_CONFIG } from "../../constants/index.ts";
+import { getSpinnerFrame } from "../progress/utils.ts";
 
-const FRAMES = ["◴", "◷", "◶", "◵"] as const;
+const SPINNER_TICK_MS = 120;
 
 function formatElapsed(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -15,17 +17,31 @@ function formatElapsed(ms: number) {
 
 export function RecordingSessionScreen({
   session,
+  meta,
+  topicHints,
+  topicTitle,
+  topicDescription,
 }: {
   session: RecordSession;
+  meta?: string;
+  topicHints?: string[];
+  topicTitle?: string;
+  topicDescription?: string;
 }) {
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [spinnerTick, setSpinnerTick] = useState(0);
   const [hasSilenceWarning, setHasSilenceWarning] = useState(false);
+  const [showTopicHint, setShowTopicHint] = useState(false);
+  const [hintIndex, setHintIndex] = useState(-1);
   const [hasStopped, setHasStopped] = useState(false);
 
   useEffect(() => {
     const tick = setInterval(() => {
       setElapsedMs((value) => value + 250);
     }, 250);
+    const spinnerTimer = setInterval(() => {
+      setSpinnerTick((value) => value + 1);
+    }, SPINNER_TICK_MS);
 
     function onWarning() {
       setHasSilenceWarning(true);
@@ -33,58 +49,93 @@ export function RecordingSessionScreen({
 
     function onCleared() {
       setHasSilenceWarning(false);
+      setShowTopicHint(false);
+      setHintIndex(-1);
+    }
+
+    function onHintTick() {
+      if (!topicHints || topicHints.length === 0) {
+        return;
+      }
+      setShowTopicHint(true);
+      setHintIndex((value) => (value + 1) % topicHints.length);
     }
 
     session.on("silence-warning", onWarning);
     session.on("silence-cleared", onCleared);
+    session.on("silence-hint-tick", onHintTick);
 
     return () => {
       clearInterval(tick);
+      clearInterval(spinnerTimer);
       session.off("silence-warning", onWarning);
       session.off("silence-cleared", onCleared);
+      session.off("silence-hint-tick", onHintTick);
     };
-  }, [session]);
+  }, [session, topicHints]);
 
   useInput((input, key) => {
     if (hasStopped) {
       return;
     }
 
-    if (input.toLowerCase() === "q" || key.escape || (key.ctrl && input === "c")) {
+    if (
+      input.toLowerCase() === "q" ||
+      key.escape ||
+      (key.ctrl && input === "c")
+    ) {
       setHasStopped(true);
       session.stop("user");
     }
   });
 
-  const frame = useMemo(() => {
-    const idx = Math.floor(elapsedMs / 250) % FRAMES.length;
-    return FRAMES[idx];
-  }, [elapsedMs]);
+  const spinner = useMemo(() => getSpinnerFrame(spinnerTick), [spinnerTick]);
+  const activeHint =
+    topicHints && topicHints.length > 0 && hintIndex >= 0
+      ? topicHints[hintIndex]
+      : null;
+  const showSilenceUi = hasSilenceWarning;
 
   return (
-    <AppFrame title="Recording session" subtitle="record">
+    <AppFrame title="Recording session" subtitle="record" meta={meta}>
       <Box marginBottom={1}>
-        <Text color={theme.brand}>{frame}</Text>
-        <Text color={theme.muted}>  Listening</Text>
+        <Text color={theme.success}>{spinner}</Text>
+        <Text color={theme.muted}> </Text>
+        <Text color={theme.text}>Listening</Text>
+        <Text color={theme.muted}> · {formatElapsed(elapsedMs)}</Text>
       </Box>
 
-      <Box marginBottom={1}>
-        <Text color={theme.success}>REC</Text>
-        <Text color={theme.muted}>  ·  </Text>
-        <Text color={theme.text}>{formatElapsed(elapsedMs)}</Text>
-      </Box>
+      {topicTitle ? (
+        <Box marginBottom={1} flexDirection="column">
+          <Text color={theme.brand}>{topicTitle}</Text>
+          {topicDescription ? (
+            <Text color={theme.muted}>{topicDescription}</Text>
+          ) : null}
+        </Box>
+      ) : null}
 
-      <Box marginBottom={1}>
-        {hasSilenceWarning ? (
+      {showSilenceUi ? (
+        <Box marginBottom={1} flexDirection="column">
           <Text color={theme.warning}>
-            Silent for 20s. Speak in 10s or capture stops automatically.
+            {`Silent for ${Math.floor(
+              RECORDING_SILENCE_CONFIG.silenceWarningMs / 1000
+            )}s. Speak now or capture stops automatically in ${Math.max(
+              0,
+              Math.ceil(
+                (RECORDING_SILENCE_CONFIG.silenceAutoStopMs -
+                  RECORDING_SILENCE_CONFIG.silenceWarningMs) /
+                  1000
+              )
+            )}s.`}
           </Text>
-        ) : (
-          <Text color={theme.muted}>
-            Auto-stop is enabled after 30s of continuous silence.
-          </Text>
-        )}
-      </Box>
+          {showTopicHint && activeHint ? (
+            <Box marginTop={1} flexDirection="column">
+              <Text color={theme.accent}>Hint</Text>
+              <Text color={theme.text}>{activeHint}</Text>
+            </Box>
+          ) : null}
+        </Box>
+      ) : null}
 
       <Text color={theme.muted}>Press q to stop and save.</Text>
     </AppFrame>

@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import { nanoid } from "nanoid";
 import { SUPPORTED_LANGUAGES } from "../constants/index.ts";
+import { TOPICS } from "../constants/topics.ts";
 
 export function createSchema(db: Database.Database) {
   db.exec(`
@@ -28,6 +29,7 @@ export function createSchema(db: Database.Database) {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       user_track_id TEXT NOT NULL,
+      topic_id TEXT,
       transcriptText TEXT,
       audioDurationMs INTEGER NOT NULL,
       audioFilePath TEXT NOT NULL,
@@ -39,7 +41,16 @@ export function createSchema(db: Database.Database) {
       detected_language TEXT,
       feedback_confidence_score INTEGER,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (user_track_id) REFERENCES user_tracks(id) ON DELETE CASCADE
+      FOREIGN KEY (user_track_id) REFERENCES user_tracks(id) ON DELETE CASCADE,
+      FOREIGN KEY (topic_id) REFERENCES topics(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS topics (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL,
+      proficiency INTEGER NOT NULL CHECK (proficiency BETWEEN 1 AND 10),
+      hints_json TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS sentence_rewrites (
@@ -87,6 +98,10 @@ export function createSchema(db: Database.Database) {
       ON vocabulary(user_track_id);
     CREATE INDEX IF NOT EXISTS idx_grammar_patterns_user_track_id
       ON grammar_patterns(user_track_id);
+    CREATE INDEX IF NOT EXISTS idx_topics_proficiency
+      ON topics(proficiency);
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_user_track_topic
+      ON user_sessions(user_track_id, topic_id);
 
     CREATE TABLE IF NOT EXISTS configuration (
       openAIKey TEXT,
@@ -103,6 +118,19 @@ export function createSchema(db: Database.Database) {
     );
     for (const lang of SUPPORTED_LANGUAGES) {
       insert.run(nanoid(), lang.code, lang.label);
+    }
+
+    const insertTopic = db.prepare(
+      "INSERT OR IGNORE INTO topics (id, title, description, proficiency, hints_json) VALUES (?, ?, ?, ?, ?)"
+    );
+    for (const topic of TOPICS) {
+      insertTopic.run(
+        nanoid(),
+        topic.title,
+        topic.description,
+        topic.proficiency,
+        JSON.stringify(topic.hints)
+      );
     }
   });
 

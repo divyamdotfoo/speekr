@@ -16,6 +16,7 @@ import { RecordingSessionScreen } from "../../components/recording/recording-ses
 import {
   createUserSession,
   getTrackGrammarPatternTypes,
+  listTopicSuggestionsForTrack,
   getTrackVocabularyWords,
   listUserTracksByUserId,
   getPrimaryUser,
@@ -34,6 +35,7 @@ import { RECORDINGS_DIRECTORY_PATH } from "../../db/client.ts";
 import type {
   RecordSessionResult,
   SessionFeedback,
+  Topic,
   TranscriptionChoice,
   UserSession,
 } from "../../types/index.ts";
@@ -61,8 +63,22 @@ export async function runInteractiveRecording(
   const primaryUser = getPrimaryUser();
   const userTracks = primaryUser ? listUserTracksByUserId(primaryUser.id) : [];
   const selectedTrack =
-    userTracks.length <= 1 ? userTracks[0] ?? null : await runTrackChoiceScreen(userTracks);
+    userTracks.length <= 1
+      ? userTracks[0] ?? null
+      : await runTrackChoiceScreen(userTracks);
+  const selectedTopic = selectedTrack
+    ? await runTopicChoiceScreen({
+        userTrackId: selectedTrack.id,
+        proficiency: selectedTrack.proficiency,
+      })
+    : null;
+  if (selectedTrack && selectedTopic === undefined) {
+    return;
+  }
   const languageCode = selectedTrack?.language;
+  const currentLevelMeta = selectedTrack
+    ? `Level ${selectedTrack.proficiency} · ${selectedTrack.languageLabel}`
+    : undefined;
 
   await mkdir(RECORDINGS_DIRECTORY_PATH, { recursive: true });
   const outputPath = join(RECORDINGS_DIRECTORY_PATH, buildRecordingFileName());
@@ -72,7 +88,15 @@ export async function runInteractiveRecording(
   });
 
   const result = await new Promise<RecordSessionResult>((resolve, reject) => {
-    const instance = render(createElement(RecordingSessionScreen, { session }));
+    const instance = render(
+      createElement(RecordingSessionScreen, {
+        session,
+        meta: currentLevelMeta,
+        topicHints: selectedTopic?.hints ?? [],
+        topicTitle: selectedTopic?.title,
+        topicDescription: selectedTopic?.description,
+      })
+    );
     session.result
       .then((value) => {
         instance.unmount();
@@ -91,6 +115,7 @@ export async function runInteractiveRecording(
         tryPersistUserSession({
           userId: primaryUser.id,
           userTrackId: selectedTrack.id,
+          topicId: selectedTopic?.id ?? null,
           transcriptText: null,
           audioDurationMs: result.durationMs,
           audioFilePath: result.outputPath,
@@ -139,6 +164,7 @@ export async function runInteractiveRecording(
       persistedSession = tryPersistUserSession({
         userId: primaryUser.id,
         userTrackId: selectedTrack.id,
+        topicId: selectedTopic?.id ?? null,
         transcriptText,
         audioDurationMs: result.durationMs,
         audioFilePath: result.outputPath,
@@ -297,6 +323,33 @@ async function runTrackChoiceScreen(
   });
 }
 
+async function runTopicChoiceScreen(input: {
+  userTrackId: string;
+  proficiency: number;
+}): Promise<Topic | null | undefined> {
+  const suggestions = listTopicSuggestionsForTrack({
+    userTrackId: input.userTrackId,
+    proficiency: input.proficiency,
+    limit: 6,
+  });
+  return await new Promise<Topic | null | undefined>((resolve) => {
+    const instance = render(
+      createElement(TopicChoiceScreen, {
+        suggestions,
+        proficiency: input.proficiency,
+        onSelect: (topic: Topic | null) => {
+          instance.unmount();
+          resolve(topic);
+        },
+        onCancel: () => {
+          instance.unmount();
+          resolve(undefined);
+        },
+      })
+    );
+  });
+}
+
 async function resolveTranscriptionChoiceAfterRecording() {
   const current = getTranscriptionChoice();
   if (current) {
@@ -314,6 +367,7 @@ async function resolveTranscriptionChoiceAfterRecording() {
 function tryPersistUserSession(input: {
   userId: string;
   userTrackId: string;
+  topicId: string | null;
   transcriptText: string | null;
   audioDurationMs: number;
   audioFilePath: string;
@@ -388,6 +442,77 @@ function TrackChoiceScreen({
             return;
           }
           onSelect(matchedTrack);
+        },
+      })
+    )
+  );
+}
+
+function TopicChoiceScreen({
+  suggestions,
+  proficiency,
+  onSelect,
+  onCancel,
+}: {
+  suggestions: Topic[];
+  proficiency: number;
+  onSelect: (topic: Topic | null) => void;
+  onCancel: () => void;
+}) {
+  useInput((input, key) => {
+    if (key.escape || (key.ctrl && input === "c")) {
+      onCancel();
+    }
+  });
+
+  const topicById = new Map(suggestions.map((topic) => [topic.id, topic]));
+
+  return createElement(
+    AppFrame,
+    {
+      title: "Choose topic",
+      subtitle: "record",
+      meta: `Level ${proficiency}`,
+    },
+    createElement(
+      Box,
+      { marginBottom: 1, flexDirection: "column" },
+      createElement(
+        Text,
+        null,
+        "Pick a guided topic or choose Freestyle to speak on anything."
+      ),
+      createElement(
+        Text,
+        null,
+        "Used topics are excluded from suggestions for this track."
+      )
+    ),
+    createElement(
+      Box,
+      { marginTop: 1 },
+      createElement(SelectInput, {
+        items: [
+          {
+            label: "Freestyle - speak about anything",
+            value: "__freestyle__",
+          },
+          ...suggestions.map((topic) => ({
+            label: `${topic.title} (L${topic.proficiency}) - ${topic.description}`,
+            value: topic.id,
+          })),
+        ],
+        onSelect: (item: { value: unknown }) => {
+          const value = String(item.value);
+          if (value === "__freestyle__") {
+            onSelect(null);
+            return;
+          }
+          const matchedTopic = topicById.get(value);
+          if (!matchedTopic) {
+            return;
+          }
+          onSelect(matchedTopic);
         },
       })
     )

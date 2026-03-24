@@ -2,7 +2,10 @@ import { EventEmitter } from "node:events";
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { stat } from "node:fs/promises";
 import type { Readable, Writable } from "node:stream";
-import { AUDIO_RECORDING_CONFIG } from "../../constants/index.ts";
+import {
+  AUDIO_RECORDING_CONFIG,
+  RECORDING_SILENCE_CONFIG,
+} from "../../constants/index.ts";
 import type {
   RecordSession,
   RecordSessionResult,
@@ -21,6 +24,9 @@ const RECORDING_CHANNELS = AUDIO_RECORDING_CONFIG.channels;
 const RECORDING_SAMPLE_RATE = AUDIO_RECORDING_CONFIG.sampleRate;
 const RECORDING_CODEC = AUDIO_RECORDING_CONFIG.codec;
 const RECORDING_FILTER = AUDIO_RECORDING_CONFIG.silenceFilter;
+const SILENCE_WARNING_MS = RECORDING_SILENCE_CONFIG.silenceWarningMs;
+const SILENCE_AUTO_STOP_MS = RECORDING_SILENCE_CONFIG.silenceAutoStopMs;
+const SILENCE_HINT_INTERVAL_MS = RECORDING_SILENCE_CONFIG.silenceHintIntervalMs;
 
 export function resolveFfmpegExecutable() {
   return resolveSystemFfmpegPath();
@@ -43,6 +49,8 @@ export function createRecordSession(input: {
   let stopReason: StopReason | null = null;
   let warningTimer: NodeJS.Timeout | null = null;
   let autoStopTimer: NodeJS.Timeout | null = null;
+  let hintInterval: NodeJS.Timeout | null = null;
+  let silenceStartedAt: number | null = null;
   let stopTimeout: NodeJS.Timeout | null = null;
   let hasSilenceWindow = false;
   let hasStopped = false;
@@ -59,6 +67,11 @@ export function createRecordSession(input: {
       clearTimeout(autoStopTimer);
       autoStopTimer = null;
     }
+    if (hintInterval) {
+      clearInterval(hintInterval);
+      hintInterval = null;
+    }
+    silenceStartedAt = null;
     hasSilenceWindow = false;
   }
 
@@ -86,12 +99,26 @@ export function createRecordSession(input: {
       }
 
       hasSilenceWindow = true;
+      silenceStartedAt = Date.now();
       warningTimer = setTimeout(() => {
-        events.emit("silence-warning", { secondsUntilAutoStop: 10 });
-      }, 20_000);
+        events.emit("silence-warning", {
+          secondsUntilAutoStop: Math.max(
+            0,
+            Math.ceil((SILENCE_AUTO_STOP_MS - SILENCE_WARNING_MS) / 1000)
+          ),
+        });
+      }, SILENCE_WARNING_MS);
+      hintInterval = setInterval(() => {
+        if (!hasSilenceWindow || silenceStartedAt === null) {
+          return;
+        }
+        events.emit("silence-hint-tick", {
+          elapsedSilenceMs: Date.now() - silenceStartedAt,
+        });
+      }, SILENCE_HINT_INTERVAL_MS);
       autoStopTimer = setTimeout(() => {
         stop("silence_timeout");
-      }, 30_000);
+      }, SILENCE_AUTO_STOP_MS);
       return;
     }
 

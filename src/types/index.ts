@@ -14,10 +14,19 @@ export type UserSession = {
   id: string;
   userId: string;
   userTrackId: string;
+  topicId: string | null;
   transcriptText: string | null;
   audioDurationMs: number;
   audioFilePath: string;
   wordCount: number | null;
+};
+
+export type Topic = {
+  id: string;
+  title: string;
+  description: string;
+  proficiency: ProficiencyLevel;
+  hints: string[];
 };
 
 export type SessionFeedbackStatus = "pending" | "completed" | "failed";
@@ -84,19 +93,23 @@ export type RecordSessionResult = {
 export type RecordSession = {
   stop: (reason?: StopReason) => void;
   result: Promise<RecordSessionResult>;
-  on: <K extends "silence-warning" | "silence-cleared">(
+  on: <K extends "silence-warning" | "silence-cleared" | "silence-hint-tick">(
     event: K,
     listener: (
       payload: K extends "silence-warning"
         ? { secondsUntilAutoStop: number }
+        : K extends "silence-hint-tick"
+        ? { elapsedSilenceMs: number }
         : undefined
     ) => void
   ) => void;
-  off: <K extends "silence-warning" | "silence-cleared">(
+  off: <K extends "silence-warning" | "silence-cleared" | "silence-hint-tick">(
     event: K,
     listener: (
       payload: K extends "silence-warning"
         ? { secondsUntilAutoStop: number }
+        : K extends "silence-hint-tick"
+        ? { elapsedSilenceMs: number }
         : undefined
     ) => void
   ) => void;

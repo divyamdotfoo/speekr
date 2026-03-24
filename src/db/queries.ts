@@ -12,6 +12,7 @@ import type {
   Configuration,
   SessionFeedback,
   SupportedLanguage,
+  Topic,
   TranscriptionChoice,
   User,
   UserSession,
@@ -87,6 +88,7 @@ export function createUserTrack(input: {
 export function createUserSession(input: {
   userId: string;
   userTrackId: string;
+  topicId: string | null;
   transcriptText: string | null;
   audioDurationMs: number;
   audioFilePath: string;
@@ -95,6 +97,7 @@ export function createUserSession(input: {
   const {
     userId,
     userTrackId,
+    topicId,
     transcriptText,
     audioDurationMs,
     audioFilePath,
@@ -106,6 +109,7 @@ export function createUserSession(input: {
     id: nanoid(),
     userId,
     userTrackId,
+    topicId,
     transcriptText,
     audioDurationMs,
     audioFilePath,
@@ -113,7 +117,7 @@ export function createUserSession(input: {
   };
 
   db.prepare(
-    "INSERT INTO user_sessions (id, user_id, user_track_id, transcriptText, audioDurationMs, audioFilePath, wordCount) VALUES (@id, @userId, @userTrackId, @transcriptText, @audioDurationMs, @audioFilePath, @wordCount)"
+    "INSERT INTO user_sessions (id, user_id, user_track_id, topic_id, transcriptText, audioDurationMs, audioFilePath, wordCount) VALUES (@id, @userId, @userTrackId, @topicId, @transcriptText, @audioDurationMs, @audioFilePath, @wordCount)"
   ).run(session);
 
   return session;
@@ -241,6 +245,8 @@ export function saveSessionFeedback(input: {
         Math.max(1, pattern.occurrences)
       );
     }
+
+    recomputeTrackProficiencyFromRecentFeedback(input.userTrackId);
   });
 
   writeFeedback();
@@ -353,6 +359,109 @@ export function listUserTracksByUserId(userId: string): Array<
       ORDER BY l.label ASC`
     )
     .all(userId) as Array<UserTrack & { languageLabel: string }>;
+}
+
+export function listTopicSuggestionsForTrack(input: {
+  userTrackId: string;
+  proficiency: number;
+  limit: number;
+}): Topic[] {
+  const db = getDatabaseClient();
+  const rows = db
+    .prepare(
+      `SELECT
+        t.id,
+        t.title,
+        t.description,
+        t.proficiency,
+        t.hints_json as hintsJson
+      FROM topics t
+      WHERE t.id NOT IN (
+        SELECT us.topic_id
+        FROM user_sessions us
+        WHERE us.user_track_id = ?
+          AND us.topic_id IS NOT NULL
+      )
+      ORDER BY
+        ABS(t.proficiency - ?) ASC,
+        t.proficiency ASC,
+        t.title ASC
+      LIMIT ?`
+    )
+    .all(input.userTrackId, input.proficiency, input.limit) as Array<{
+    id: string;
+    title: string;
+    description: string;
+    proficiency: number;
+    hintsJson: string;
+  }>;
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    proficiency: row.proficiency,
+    hints: parseTopicHints(row.hintsJson),
+  }));
+}
+
+export function getRecentTrackConfidenceScores(
+  userTrackId: string,
+  limit: number
+): number[] {
+  const db = getDatabaseClient();
+  const rows = db
+    .prepare(
+      `SELECT feedback_confidence_score
+      FROM user_sessions
+      WHERE user_track_id = ?
+        AND feedback_status = 'completed'
+        AND feedback_confidence_score IS NOT NULL
+      ORDER BY rowid DESC
+      LIMIT ?`
+    )
+    .all(userTrackId, limit) as Array<{ feedback_confidence_score: number }>;
+
+  return rows.map((row) => row.feedback_confidence_score);
+}
+
+export function updateTrackProficiency(userTrackId: string, nextProficiency: number) {
+  const db = getDatabaseClient();
+  db.prepare("UPDATE user_tracks SET proficiency = ? WHERE id = ?").run(
+    nextProficiency,
+    userTrackId
+  );
+}
+
+export function recomputeTrackProficiencyFromRecentFeedback(userTrackId: string) {
+  const db = getDatabaseClient();
+  const currentTrack = db
+    .prepare("SELECT proficiency FROM user_tracks WHERE id = ?")
+    .get(userTrackId) as { proficiency: number } | undefined;
+  if (!currentTrack) {
+    return;
+  }
+
+  const recentScores = getRecentTrackConfidenceScores(userTrackId, 5);
+  if (recentScores.length < 3) {
+    return;
+  }
+
+  const averageScore =
+    recentScores.reduce((sum, score) => sum + score, 0) / recentScores.length;
+  const shouldIncrease = averageScore >= 80;
+  const shouldDecrease = averageScore <= 45;
+  if (!shouldIncrease && !shouldDecrease) {
+    return;
+  }
+
+  const delta = shouldIncrease ? 1 : -1;
+  const nextProficiency = clampProficiency(currentTrack.proficiency + delta);
+  if (nextProficiency === currentTrack.proficiency) {
+    return;
+  }
+
+  updateTrackProficiency(userTrackId, nextProficiency);
 }
 
 export function isSetupComplete(): boolean {
@@ -510,4 +619,20 @@ function getPrimaryUserId(db: ReturnType<typeof getDatabaseClient>) {
 
 function normalizeKey(value: string) {
   return value.trim().toLocaleLowerCase();
+}
+
+function clampProficiency(value: number) {
+  return Math.min(10, Math.max(1, value));
+}
+
+function parseTopicHints(hintsJson: string): string[] {
+  try {
+    const parsed = JSON.parse(hintsJson) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((hint): hint is string => typeof hint === "string");
+  } catch {
+    return [];
+  }
 }
