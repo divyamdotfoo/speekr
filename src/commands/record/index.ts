@@ -38,21 +38,9 @@ export const registerRecordCommand: CommandRegistrar = (program: Command) => {
         return;
       }
 
-      try {
-        await runInteractiveRecording(ffmpegPath, {
-          transcription: options.transcription,
-        });
-      } catch (error) {
-        const detail =
-          error instanceof Error ? error.message : "Unknown recording error.";
-        renderCommandScreen({
-          title: "Recording failed",
-          subtitle: "record",
-          tone: "danger",
-          statusLabel: "Capture aborted",
-          message: detail,
-        });
-      }
+      await runInteractiveRecording(ffmpegPath, {
+        transcription: options.transcription,
+      });
       }
     );
 };

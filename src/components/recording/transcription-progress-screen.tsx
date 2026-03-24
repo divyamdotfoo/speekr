@@ -10,6 +10,7 @@ import {
 } from "../loading/loading-controller.ts";
 import { useLoadingController } from "../loading/loading-provider.tsx";
 import { runWithLoadingUI } from "../loading/run-with-loading-ui.tsx";
+import { formatUserFacingError } from "../../lib/errors.ts";
 
 export async function runTranscriptionProgressScreen(input: {
   audioPath: string;
@@ -181,8 +182,9 @@ function TranscriptionProgressScreen(input: {
         }
         const resolvedError =
           error instanceof Error ? error : new Error("Transcription failed.");
+        const friendly = formatUserFacingError(resolvedError);
         loading.failLoadingUI(resolvedError, {
-          message: resolvedError.message,
+          message: friendly.message,
         });
         input.onError(resolvedError);
       });
@@ -206,21 +208,20 @@ async function runProgressScreen(input: {
     onLog: (line: string) => void;
   }) => Promise<void>;
 }) {
-  const runTranscription =
-    input.mode === "local"
-      ? transcribeRecordingLocally({
-          audioPath: input.audioPath,
-          languageCode: input.languageCode,
-        })
-      : transcribeRecordingWithAI({
-          provider: input.mode,
-          transcription: {
+  if (!process.stdin.isTTY) {
+    const runTranscription =
+      input.mode === "local"
+        ? transcribeRecordingLocally({
             audioPath: input.audioPath,
             languageCode: input.languageCode,
-          },
-        });
-
-  if (!process.stdin.isTTY) {
+          })
+        : transcribeRecordingWithAI({
+            provider: input.mode,
+            transcription: {
+              audioPath: input.audioPath,
+              languageCode: input.languageCode,
+            },
+          });
     const result = await runTranscription;
     if (input.afterTranscription) {
       await input.afterTranscription({

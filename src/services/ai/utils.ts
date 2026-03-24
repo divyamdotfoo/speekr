@@ -16,6 +16,31 @@ type AIFetcher = <T>(
   }
 ) => Promise<T>;
 
+export class ProviderRequestError extends Error {
+  provider: AIProvider;
+  status: number;
+  code: string | null;
+
+  constructor(input: {
+    provider: AIProvider;
+    status: number;
+    statusText: string;
+    code?: string | null;
+  }) {
+    const providerLabel =
+      input.provider === "openai"
+        ? "OpenAI"
+        : input.provider === "deepgram"
+          ? "Deepgram"
+          : "Anthropic";
+    super(`${providerLabel} request failed (${input.status} ${input.statusText}).`);
+    this.name = "ProviderRequestError";
+    this.provider = input.provider;
+    this.status = input.status;
+    this.code = input.code ?? null;
+  }
+}
+
 export function createCaller(provider: AIProvider, apiKey: string): AIFetcher {
   return async function requestJson<T>(
     url: string,
@@ -51,9 +76,13 @@ export function createCaller(provider: AIProvider, apiKey: string): AIFetcher {
 
     if (!response.ok) {
       const raw = await response.text();
-      throw new Error(
-        `AI request failed (${response.status} ${response.statusText}): ${raw}`
-      );
+      const codeMatch = raw.match(/"err_code"\s*:\s*"([^"]+)"/i);
+      throw new ProviderRequestError({
+        provider,
+        status: response.status,
+        statusText: response.statusText || "Request error",
+        code: codeMatch?.[1] ?? null,
+      });
     }
 
     return (await response.json()) as T;

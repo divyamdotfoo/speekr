@@ -11,7 +11,6 @@ import type {
   AIProvider,
   Configuration,
   SessionFeedback,
-  ProficiencyLevel,
   SupportedLanguage,
   TranscriptionChoice,
   User,
@@ -61,7 +60,7 @@ export function createUser(name: string): User {
 export function createUserTrack(input: {
   userId: string;
   languageId: string;
-  proficiency: ProficiencyLevel;
+  proficiency: number;
 }): UserTrack {
   const { userId, languageId, proficiency } = input;
   const db = getDatabaseClient();
@@ -336,6 +335,26 @@ export function getPrimaryUserTrack(userId: string): UserTrack | null {
   return track ?? null;
 }
 
+export function listUserTracksByUserId(userId: string): Array<
+  UserTrack & { languageLabel: string }
+> {
+  const db = getDatabaseClient();
+  return db
+    .prepare(
+      `SELECT
+        t.id,
+        t.user_id as userId,
+        l.code as language,
+        l.label as languageLabel,
+        t.proficiency
+      FROM user_tracks t
+      JOIN supported_languages l ON l.id = t.language_id
+      WHERE t.user_id = ?
+      ORDER BY l.label ASC`
+    )
+    .all(userId) as Array<UserTrack & { languageLabel: string }>;
+}
+
 export function isSetupComplete(): boolean {
   const db = getDatabaseClient();
 
@@ -354,15 +373,14 @@ export function isSetupComplete(): boolean {
 
 export function runInitialSetup(input: {
   username: string;
-  languageId: string;
-  proficiency: ProficiencyLevel;
+  languageIds: string[];
   defaultModel: AIProvider | null;
   transcriptionChoice: Exclude<TranscriptionChoice, null>;
   openAIKey?: string | null;
   anthropicKey?: string | null;
   deepgramKey?: string | null;
-}): { user: User; track: UserTrack } {
-  const { username, languageId, proficiency, defaultModel } = input;
+}): { user: User; tracks: UserTrack[] } {
+  const { username, languageIds, defaultModel } = input;
   const { transcriptionChoice } = input;
   const db = getDatabaseClient();
 
@@ -373,26 +391,30 @@ export function runInitialSetup(input: {
     name: username,
   };
 
-  const track: UserTrack = {
+  const uniqueLanguageIds = Array.from(new Set(languageIds));
+  const tracks: UserTrack[] = uniqueLanguageIds.map((languageId) => ({
     id: nanoid(),
     userId,
     language: languageId,
-    proficiency,
-  };
+    proficiency: 1,
+  }));
 
   const writeSetup = db.transaction(() => {
     db.prepare(
       "INSERT INTO users (id, name) VALUES (@id, @name) ON CONFLICT(id) DO UPDATE SET name = excluded.name"
     ).run(user);
     db.prepare("DELETE FROM user_tracks WHERE user_id = ?").run(userId);
-    db.prepare(
+    const insertTrack = db.prepare(
       "INSERT INTO user_tracks (id, user_id, language_id, proficiency) VALUES (@id, @userId, @languageId, @proficiency)"
-    ).run({
-      id: track.id,
-      userId,
-      languageId,
-      proficiency,
-    });
+    );
+    for (const track of tracks) {
+      insertTrack.run({
+        id: track.id,
+        userId,
+        languageId: track.language,
+        proficiency: 1,
+      });
+    }
 
     const existingConfig = ensureConfigurationRow(db);
 
@@ -427,7 +449,7 @@ export function runInitialSetup(input: {
 
   writeSetup();
 
-  return { user, track };
+  return { user, tracks };
 }
 
 type ConfigRow = {

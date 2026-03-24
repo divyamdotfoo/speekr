@@ -1,7 +1,9 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { render } from "ink";
+import { Box, Text, render, useInput } from "ink";
+import SelectInput from "ink-select-input";
 import { createElement } from "react";
+import { AppFrame } from "../../components/layout/app-frame.tsx";
 import { renderCommandScreen } from "../../components/layout/command-screen.tsx";
 import { runTranscriptionChoiceScreen } from "../../components/recording/transcription-choice-screen.tsx";
 import {
@@ -15,8 +17,8 @@ import {
   createUserSession,
   getTrackGrammarPatternTypes,
   getTrackVocabularyWords,
+  listUserTracksByUserId,
   getPrimaryUser,
-  getPrimaryUserTrack,
   getTranscriptionChoice,
   markSessionFeedbackFailed,
   saveSessionFeedback,
@@ -56,6 +58,12 @@ export async function runInteractiveRecording(
   ffmpegPath: string,
   input?: { transcription?: Exclude<TranscriptionChoice, null> }
 ) {
+  const primaryUser = getPrimaryUser();
+  const userTracks = primaryUser ? listUserTracksByUserId(primaryUser.id) : [];
+  const selectedTrack =
+    userTracks.length <= 1 ? userTracks[0] ?? null : await runTrackChoiceScreen(userTracks);
+  const languageCode = selectedTrack?.language;
+
   await mkdir(RECORDINGS_DIRECTORY_PATH, { recursive: true });
   const outputPath = join(RECORDINGS_DIRECTORY_PATH, buildRecordingFileName());
   const session = createRecordSession({
@@ -75,18 +83,14 @@ export async function runInteractiveRecording(
         reject(error);
       });
   });
-
-  const primaryUser = getPrimaryUser();
-  const primaryTrack = primaryUser ? getPrimaryUserTrack(primaryUser.id) : null;
-  const languageCode = primaryTrack?.language;
   const transcriptionChoice =
     input?.transcription ?? (await resolveTranscriptionChoiceAfterRecording());
   if (transcriptionChoice === null) {
-    if (primaryUser && primaryTrack) {
+    if (primaryUser && selectedTrack) {
       try {
         tryPersistUserSession({
           userId: primaryUser.id,
-          userTrackId: primaryTrack.id,
+          userTrackId: selectedTrack.id,
           transcriptText: null,
           audioDurationMs: result.durationMs,
           audioFilePath: result.outputPath,
@@ -118,29 +122,23 @@ export async function runInteractiveRecording(
   let feedback: SessionFeedback | null = null;
   let feedbackError: string | null = null;
   let persistedSession: UserSession | null = null;
-  try {
-    const transcriptionAndFeedback = await runTranscriptionAndFeedback({
-      transcriptionChoice,
-      audioPath: result.outputPath,
-      languageCode,
-      userTrackId: primaryTrack?.id,
-      proficiency: primaryTrack?.proficiency,
-    });
-    transcriptText = transcriptionAndFeedback.transcript.text;
-    wordCount = countWords(transcriptionAndFeedback.transcript.text);
-    feedback = transcriptionAndFeedback.feedback;
-    feedbackError = transcriptionAndFeedback.feedbackError;
-  } catch (error) {
-    feedbackError = `Transcription failed: ${
-      error instanceof Error ? error.message : "Unknown error."
-    }`;
-  }
+  const transcriptionAndFeedback = await runTranscriptionAndFeedback({
+    transcriptionChoice,
+    audioPath: result.outputPath,
+    languageCode,
+    userTrackId: selectedTrack?.id,
+    proficiency: selectedTrack?.proficiency,
+  });
+  transcriptText = transcriptionAndFeedback.transcript.text;
+  wordCount = countWords(transcriptionAndFeedback.transcript.text);
+  feedback = transcriptionAndFeedback.feedback;
+  feedbackError = transcriptionAndFeedback.feedbackError;
 
-  if (primaryUser && primaryTrack) {
+  if (primaryUser && selectedTrack) {
     try {
       persistedSession = tryPersistUserSession({
         userId: primaryUser.id,
-        userTrackId: primaryTrack.id,
+        userTrackId: selectedTrack.id,
         transcriptText,
         audioDurationMs: result.durationMs,
         audioFilePath: result.outputPath,
@@ -221,35 +219,26 @@ async function runTranscriptionAndFeedback(input: {
     onLog: (line: string) => void;
   }) => {
     if (!input.userTrackId) {
-      feedbackError = "AI feedback skipped: no user track available.";
-      return;
+      throw new Error("AI feedback failed: no user track available.");
     }
-    try {
-      feedbackInput.onProgress(
-        "Preparing existing context for prompt.",
-        "Using saved vocabulary and grammar patterns from this track."
-      );
-      feedbackInput.onLog("Preparing AI feedback context.");
-      const existingVocabularyWords = getTrackVocabularyWords(input.userTrackId);
-      const existingGrammarPatternTypes = getTrackGrammarPatternTypes(
-        input.userTrackId
-      );
-      const ai = getAI();
-      feedbackInput.onProgress("Waiting for AI provider feedback response.");
-      feedbackInput.onLog("Sending transcription for AI feedback analysis.");
-      generatedFeedback = await ai.generateFeedback({
-        transcription: feedbackInput.result.text,
-        existingVocabularyWords,
-        existingGrammarPatternTypes,
-        proficiency: input.proficiency ?? 0,
-      });
-    } catch (error) {
-      const detail =
-        error instanceof Error
-          ? error.message
-          : "Unknown feedback generation error.";
-      feedbackError = `AI feedback failed: ${detail}`;
-    }
+    feedbackInput.onProgress(
+      "Preparing existing context for prompt.",
+      "Using saved vocabulary and grammar patterns from this track."
+    );
+    feedbackInput.onLog("Preparing AI feedback context.");
+    const existingVocabularyWords = getTrackVocabularyWords(input.userTrackId);
+    const existingGrammarPatternTypes = getTrackGrammarPatternTypes(
+      input.userTrackId
+    );
+    const ai = getAI();
+    feedbackInput.onProgress("Waiting for AI provider feedback response.");
+    feedbackInput.onLog("Sending transcription for AI feedback analysis.");
+    generatedFeedback = await ai.generateFeedback({
+      transcription: feedbackInput.result.text,
+      existingVocabularyWords,
+      existingGrammarPatternTypes,
+      proficiency: input.proficiency ?? 0,
+    });
   };
 
   const transcript =
@@ -277,6 +266,35 @@ async function runTranscriptionAndFeedback(input: {
 function buildRecordingFileName() {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   return `recording-${stamp}.wav`;
+}
+
+async function runTrackChoiceScreen(
+  tracks: Array<{
+    id: string;
+    language: string;
+    languageLabel: string;
+    proficiency: number;
+  }>
+) {
+  if (tracks.length === 0) {
+    return null;
+  }
+
+  return await new Promise<(typeof tracks)[number] | null>((resolve) => {
+    const instance = render(
+      createElement(TrackChoiceScreen, {
+        tracks,
+        onSelect: (track: (typeof tracks)[number]) => {
+          instance.unmount();
+          resolve(track);
+        },
+        onCancel: () => {
+          instance.unmount();
+          resolve(null);
+        },
+      })
+    );
+  });
 }
 
 async function resolveTranscriptionChoiceAfterRecording() {
@@ -310,4 +328,68 @@ function countWords(text: string): number {
     return 0;
   }
   return trimmed.split(/\s+/).length;
+}
+
+function TrackChoiceScreen({
+  tracks,
+  onSelect,
+  onCancel,
+}: {
+  tracks: Array<{
+    id: string;
+    language: string;
+    languageLabel: string;
+    proficiency: number;
+  }>;
+  onSelect: (track: {
+    id: string;
+    language: string;
+    languageLabel: string;
+    proficiency: number;
+  }) => void;
+  onCancel: () => void;
+}) {
+  useInput((input, key) => {
+    if (key.escape || (key.ctrl && input === "c")) {
+      onCancel();
+    }
+  });
+
+  const trackById = new Map(tracks.map((track) => [track.id, track]));
+
+  return createElement(
+    AppFrame,
+    { title: "Choose language track", subtitle: "record" },
+    createElement(
+      Box,
+      { marginBottom: 1, flexDirection: "column" },
+      createElement(
+        Text,
+        null,
+        "Select the language track for this recording session."
+      ),
+      createElement(
+        Text,
+        null,
+        "Your selected track is used for session history and feedback context."
+      )
+    ),
+    createElement(
+      Box,
+      { marginTop: 1 },
+      createElement(SelectInput, {
+        items: tracks.map((track) => ({
+          label: `${track.languageLabel} (Level ${track.proficiency})`,
+          value: track.id,
+        })),
+        onSelect: (item: { value: unknown }) => {
+          const matchedTrack = trackById.get(String(item.value));
+          if (!matchedTrack) {
+            return;
+          }
+          onSelect(matchedTrack);
+        },
+      })
+    )
+  );
 }

@@ -3,23 +3,26 @@ import { render } from "ink";
 import SelectInput from "ink-select-input";
 import TextInput from "ink-text-input";
 import { useMemo, useState } from "react";
-import { listSupportedLanguages, runInitialSetup } from "../../db/queries.ts";
+import {
+  getConfiguration,
+  getPrimaryUser,
+  listSupportedLanguages,
+  listUserTracksByUserId,
+  runInitialSetup,
+} from "../../db/queries.ts";
 import type {
   AIProvider,
-  ProficiencyLevel,
+  Configuration,
   SupportedLanguage,
   TranscriptionChoice,
 } from "../../types/index.ts";
-import { StatusBadge } from "../feedback/status-badge.tsx";
 import { AppFrame } from "../layout/app-frame.tsx";
 import { theme } from "../theme/tokens.ts";
-import { LanguageSelect } from "./language-select.tsx";
-import { ProficiencySelect } from "./proficiency-select.tsx";
+import { LanguageMultiSelect } from "./language-multi-select.tsx";
 
 type SetupStep =
   | "username"
   | "language"
-  | "proficiency"
   | "provider"
   | "transcription_choice"
   | "api_key"
@@ -27,13 +30,24 @@ type SetupStep =
 
 type SetupAnswers = {
   username: string;
-  languageId: string;
-  proficiency: ProficiencyLevel;
+  languageIds: string[];
   defaultModel: AIProvider | null;
   transcriptionChoice: Exclude<TranscriptionChoice, null>;
   openAIKey?: string | null;
   anthropicKey?: string | null;
   deepgramKey?: string | null;
+};
+
+type SetupDefaults = {
+  username: string;
+  languageIds: string[];
+  defaultModel: AIProvider | null;
+  transcriptionChoice: Exclude<TranscriptionChoice, null>;
+  apiKeys: {
+    openai: string | null;
+    anthropic: string | null;
+    deepgram: string | null;
+  };
 };
 
 export async function runSetupFlow(commandName: string): Promise<boolean> {
@@ -42,12 +56,14 @@ export async function runSetupFlow(commandName: string): Promise<boolean> {
   }
 
   const languages = listSupportedLanguages();
+  const defaults = readSetupDefaults(languages);
+  void commandName;
 
   return await new Promise<boolean>((resolve) => {
     const instance = render(
       <SetupWizard
-        commandName={commandName}
         languages={languages}
+        defaults={defaults}
         onCancel={() => {
           instance.unmount();
           resolve(false);
@@ -63,33 +79,34 @@ export async function runSetupFlow(commandName: string): Promise<boolean> {
 }
 
 function SetupWizard({
-  commandName,
   languages,
+  defaults,
   onSubmit,
   onCancel,
 }: {
-  commandName: string;
   languages: SupportedLanguage[];
+  defaults: SetupDefaults;
   onSubmit: (answers: SetupAnswers) => Promise<void>;
   onCancel: () => void;
 }) {
   const [step, setStep] = useState<SetupStep>("username");
-  const [username, setUsername] = useState("");
-  const [language, setLanguage] = useState<(typeof languages)[number] | null>(
-    null
+  const [username, setUsername] = useState(defaults.username);
+  const [selectedLanguageIds, setSelectedLanguageIds] = useState<string[]>(
+    defaults.languageIds
   );
-  const [proficiency, setProficiency] = useState<ProficiencyLevel | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<AIProvider | null>(
-    null
+    defaults.defaultModel
   );
   const [selectedTranscriptionChoice, setSelectedTranscriptionChoice] =
-    useState<Exclude<TranscriptionChoice, null> | null>(null);
+    useState<Exclude<TranscriptionChoice, null> | null>(
+      defaults.transcriptionChoice
+    );
 
   type KeyKind = "openai" | "anthropic" | "deepgram";
   const [keyKindsToCollect, setKeyKindsToCollect] = useState<KeyKind[]>([]);
   const [keyKindsIndex, setKeyKindsIndex] = useState(0);
   const [collectedApiKeysByKind, setCollectedApiKeysByKind] = useState<
-    Partial<Record<KeyKind, string>>
+    Partial<Record<KeyKind, string | null>>
   >({});
 
   const [providerApiKeyInput, setProviderApiKeyInput] = useState("");
@@ -104,15 +121,13 @@ function SetupWizard({
         return 1;
       case "language":
         return 2;
-      case "proficiency":
-        return 3;
       case "provider":
-        return 4;
+        return 3;
       case "transcription_choice":
-        return 5;
+        return 4;
       case "api_key":
       case "saving":
-        return 6;
+        return 5;
       default:
         return 1;
     }
@@ -126,23 +141,13 @@ function SetupWizard({
       ? "Deepgram"
       : "OpenAI";
 
-  const currentStepNumber =
-    step === "api_key"
-      ? 6 + keyKindsIndex
-      : step === "saving"
-        ? 6 + keyKindsToCollect.length
-        : activeStepIndex;
+  const currentStepNumber = step === "api_key" ? 5 + keyKindsIndex : activeStepIndex;
 
   useInput((input, key) => {
     if (key.escape || (key.ctrl && input === "c")) {
       onCancel();
     }
   });
-
-  function handleProficiencySelect(value: ProficiencyLevel) {
-    setProficiency(value);
-    setStep("provider");
-  }
 
   function handleProviderSelect(value: AIProvider) {
     setSelectedProvider(value);
@@ -173,28 +178,65 @@ function SetupWizard({
     setCollectedApiKeysByKind({});
     setProviderApiKeyInput("");
     setProviderApiKeyError(null);
+    if (kinds.length === 0) {
+      void submitSetup({});
+      return;
+    }
     setStep("api_key");
   }
 
-  async function handleProviderApiKeySubmit() {
-    const trimmedValue = providerApiKeyInput.trim();
-    if (trimmedValue.length < 10) {
-      setProviderApiKeyError("Please enter a valid API key.");
+  async function submitSetup(
+    overrides: Partial<Record<KeyKind, string | null | undefined>>
+  ) {
+    const mergedApiKeys = {
+      ...collectedApiKeysByKind,
+      ...overrides,
+    };
+    const resolvedUsername = username.trim() || defaults.username;
+
+    if (
+      selectedLanguageIds.length === 0 ||
+      !selectedProvider ||
+      !selectedTranscriptionChoice ||
+      !resolvedUsername
+    ) {
+      setIsSaving(false);
       return;
     }
 
+    await onSubmit({
+      username: resolvedUsername,
+      languageIds: selectedLanguageIds,
+      defaultModel: selectedProvider,
+      transcriptionChoice: selectedTranscriptionChoice,
+      openAIKey: mergedApiKeys.openai,
+      anthropicKey: mergedApiKeys.anthropic,
+      deepgramKey: mergedApiKeys.deepgram,
+    });
+    setIsSaving(false);
+  }
+
+  async function handleProviderApiKeySubmit() {
     const activeKind = keyKindsToCollect[keyKindsIndex];
     if (!activeKind) {
       setProviderApiKeyError("Internal error: no API key requested.");
       return;
     }
 
+    const trimmedValue = providerApiKeyInput.trim();
+    if (trimmedValue.length > 0 && trimmedValue.length < 10) {
+      setProviderApiKeyError("Please enter a valid API key.");
+      return;
+    }
+
     setProviderApiKeyError(null);
 
+    const nextValue =
+      trimmedValue.length === 0 ? undefined : trimmedValue.toLowerCase() === "clear" ? null : trimmedValue;
     const nextCollected = {
       ...collectedApiKeysByKind,
-      [activeKind]: trimmedValue,
-    } satisfies Partial<Record<KeyKind, string>>;
+      ...(nextValue !== undefined ? { [activeKind]: nextValue } : {}),
+    } satisfies Partial<Record<KeyKind, string | null>>;
 
     // More than one key might be required (e.g. OpenAI for language learning + Deepgram for transcription).
     if (keyKindsIndex < keyKindsToCollect.length - 1) {
@@ -207,54 +249,33 @@ function SetupWizard({
     setCollectedApiKeysByKind(nextCollected);
     setIsSaving(true);
     setStep("saving");
-
-    if (
-      !language ||
-      !proficiency ||
-      !selectedProvider ||
-      !selectedTranscriptionChoice
-    ) {
-      setIsSaving(false);
-      return;
-    }
-
-    await onSubmit({
-      username: username.trim(),
-      languageId: language.id,
-      proficiency,
-      defaultModel: selectedProvider,
-      transcriptionChoice: selectedTranscriptionChoice,
-      openAIKey: nextCollected.openai,
-      anthropicKey: nextCollected.anthropic,
-      deepgramKey: nextCollected.deepgram,
-    });
-
-    setIsSaving(false);
+    await submitSetup(nextCollected);
   }
 
   return (
     <AppFrame
-      title="First-time setup"
-      subtitle={`required before "${commandName}"`}
+      title={resolveSetupStepLabel(step)}
+      subtitle={`Step ${currentStepNumber}`}
+      meta="Esc/Ctrl+C to cancel setup"
     >
-      <StatusBadge tone="info" label={`Step ${currentStepNumber}`} />
-      <Box marginBottom={1}>
-        <Text color={theme.muted}>Press Esc or Ctrl+C to cancel setup.</Text>
-      </Box>
-
       {step === "username" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>What should we call you?</Text>
+          {defaults.username ? (
+            <Text color={theme.muted}>Current: {defaults.username}</Text>
+          ) : null}
           <Box>
             <Text color={theme.accent}>@ </Text>
             <TextInput
               value={username}
               onChange={setUsername}
               onSubmit={(value) => {
-                if (!value.trim()) {
+                if (!value.trim() && !defaults.username) {
                   return;
                 }
-                setUsername(value.trim());
+                if (value.trim()) {
+                  setUsername(value.trim());
+                }
                 setStep("language");
               }}
             />
@@ -270,14 +291,25 @@ function SetupWizard({
       {step === "username" ? null : step === "language" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>
-            What is the first language you want to practice?
+            Which languages do you want to practice? (use y = select, n =
+            unselect, Enter = continue)
           </Text>
+          {defaults.languageIds.length > 0 ? (
+            <Text color={theme.muted}>
+              Current:{" "}
+              {languages
+                .filter((language) => defaults.languageIds.includes(language.id))
+                .map((language) => language.label)
+                .join(", ")}
+            </Text>
+          ) : null}
           <Box marginTop={1}>
-            <LanguageSelect
+            <LanguageMultiSelect
               languages={languages}
-              onSelect={(value) => {
-                setLanguage(value);
-                setStep("proficiency");
+              initialSelectedLanguageIds={selectedLanguageIds}
+              onSubmit={(value) => {
+                setSelectedLanguageIds(value);
+                setStep("provider");
               }}
             />
           </Box>
@@ -285,47 +317,41 @@ function SetupWizard({
       ) : (
         <Box marginBottom={1}>
           <Text color={theme.brand}>
-            What is the first language you want to practice?{" "}
+            Which languages do you want to practice?{" "}
           </Text>
-          <Text color={theme.accent}>{language?.label}</Text>
-        </Box>
-      )}
-
-      {step === "username" || step === "language" ? null : step ===
-        "proficiency" ? (
-        <Box flexDirection="column" marginBottom={1}>
-          <Text color={theme.brand}>
-            What is your current proficiency in this language? Rate from 1 to
-            10.
+          <Text color={theme.accent}>
+            {languages
+              .filter((language) => selectedLanguageIds.includes(language.id))
+              .map((language) => language.label)
+              .join(", ")}
           </Text>
-          <Text color={theme.muted}>
-            Selected language: {language?.label} ({language?.code})
-          </Text>
-          <Box marginTop={1}>
-            <ProficiencySelect onSelect={handleProficiencySelect} />
-          </Box>
-        </Box>
-      ) : (
-        <Box marginBottom={1}>
-          <Text color={theme.brand}>
-            What is your current proficiency in this language? Rate from 1 to
-            10.{" "}
-          </Text>
-          <Text color={theme.accent}>{proficiency}</Text>
         </Box>
       )}
 
       {step === "username" ||
-      step === "language" ||
-      step === "proficiency" ? null : step === "provider" ? (
+      step === "language" ? null : step === "provider" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>
             Which AI provider should Speekr use (grammar check, vocabulary,
             language learning)?
           </Text>
+          {defaults.defaultModel ? (
+            <Text color={theme.muted}>
+              Current:{" "}
+              {defaults.defaultModel === "anthropic" ? "Anthropic" : "OpenAI"}
+            </Text>
+          ) : null}
           <Box marginTop={1}>
             <SelectInput
               items={[
+                ...(defaults.defaultModel
+                  ? [
+                      {
+                        label: `Keep current (${defaults.defaultModel === "anthropic" ? "Anthropic" : "OpenAI"})`,
+                        value: `keep:${defaults.defaultModel}` as const,
+                      },
+                    ]
+                  : []),
                 {
                   label: "OpenAI (cheaper, requires API key)",
                   value: "openai" as const,
@@ -336,7 +362,7 @@ function SetupWizard({
                 },
               ]}
               onSelect={(item) => {
-                handleProviderSelect(item.value);
+                handleProviderSelect(resolveProviderSelection(item.value));
               }}
               indicatorComponent={({ isSelected }) => (
                 <Text color={isSelected ? theme.accent : theme.muted}>
@@ -360,16 +386,27 @@ function SetupWizard({
 
       {step === "username" ||
       step === "language" ||
-      step === "proficiency" ||
       step === "provider" ? null : step === "transcription_choice" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>
             Which transcription mode should Speekr use by default for
             recordings?
           </Text>
+          <Text color={theme.muted}>
+            Current:{" "}
+            {defaults.transcriptionChoice === "local"
+              ? "Local"
+              : defaults.transcriptionChoice === "openai"
+                ? "OpenAI"
+                : "Deepgram"}
+          </Text>
           <Box marginTop={1}>
             <SelectInput
               items={[
+                {
+                  label: `Keep current (${defaults.transcriptionChoice === "local" ? "Local" : defaults.transcriptionChoice === "openai" ? "OpenAI" : "Deepgram"})`,
+                  value: `keep:${defaults.transcriptionChoice}` as const,
+                },
                 {
                   label:
                     "Local (free, takes 2-3 minutes to setup, uses faster-whisper)",
@@ -386,7 +423,9 @@ function SetupWizard({
                 },
               ]}
               onSelect={(item) => {
-                handleTranscriptionChoiceSelect(item.value);
+                handleTranscriptionChoiceSelect(
+                  resolveTranscriptionSelection(item.value)
+                );
               }}
               indicatorComponent={({ isSelected }) => (
                 <Text color={isSelected ? theme.accent : theme.muted}>
@@ -421,7 +460,11 @@ function SetupWizard({
             API key {keyKindsIndex + 1}/{keyKindsToCollect.length}
           </Text>
           <Text color={theme.muted}>
-            This input is masked to prevent key leaks in recordings.
+            Current:{" "}
+            {obfuscateApiKey(defaults.apiKeys[activeKeyKind ?? "openai"])}
+          </Text>
+          <Text color={theme.muted}>
+            Press Enter to keep current key, or type a new key.
           </Text>
           <Box>
             <TextInput
@@ -461,8 +504,8 @@ function SetupWizard({
   );
 }
 
-function obfuscateApiKey(key: string) {
-  const trimmed = key.trim();
+function obfuscateApiKey(key: string | null | undefined) {
+  const trimmed = key?.trim() ?? "";
   if (!trimmed) {
     return "Not provided";
   }
@@ -470,4 +513,62 @@ function obfuscateApiKey(key: string) {
     return "*".repeat(trimmed.length);
   }
   return `${"*".repeat(Math.max(4, trimmed.length - 4))}${trimmed.slice(-4)}`;
+}
+
+function resolveSetupStepLabel(step: SetupStep) {
+  switch (step) {
+    case "username":
+      return "Setup / Username";
+    case "language":
+      return "Setup / Languages";
+    case "provider":
+      return "Setup / AI provider";
+    case "transcription_choice":
+      return "Setup / Transcription";
+    case "api_key":
+      return "Setup / API key";
+    case "saving":
+      return "Setup / Saving";
+    default:
+      return "Setup";
+  }
+}
+
+function readSetupDefaults(languages: SupportedLanguage[]): SetupDefaults {
+  const user = getPrimaryUser();
+  const configuration = getConfiguration();
+  const tracks = user ? listUserTracksByUserId(user.id) : [];
+  const languageByCode = new Map(languages.map((language) => [language.code, language.id]));
+
+  return {
+    username: user?.name ?? "",
+    languageIds: tracks
+      .map((track) => languageByCode.get(track.language))
+      .filter((value): value is string => Boolean(value)),
+    defaultModel: configuration.defaultModel,
+    transcriptionChoice: resolveTranscriptionChoice(configuration),
+    apiKeys: {
+      openai: configuration.openAIKey,
+      anthropic: configuration.anthropicKey,
+      deepgram: configuration.deepgramKey,
+    },
+  };
+}
+
+function resolveTranscriptionChoice(configuration: Configuration) {
+  return configuration.transcriptionChoice ?? "local";
+}
+
+function resolveProviderSelection(value: string): AIProvider {
+  return value.startsWith("keep:")
+    ? (value.slice(5) as AIProvider)
+    : (value as AIProvider);
+}
+
+function resolveTranscriptionSelection(
+  value: string
+): Exclude<TranscriptionChoice, null> {
+  return value.startsWith("keep:")
+    ? (value.slice(5) as Exclude<TranscriptionChoice, null>)
+    : (value as Exclude<TranscriptionChoice, null>);
 }
