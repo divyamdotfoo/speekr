@@ -86,6 +86,58 @@ class LearningService {
       hints: parseTopicHints(row.hintsJson),
     }));
   }
+
+  getVocabularyList(trackId: string) {
+    const db = getDatabaseClient();
+    return db
+      .prepare(
+        `SELECT
+          id,
+          word,
+          meaning,
+          example,
+          usage_count as usageCount,
+          first_seen_at as firstSeenAt,
+          last_seen_at as lastSeenAt
+        FROM vocabulary
+        WHERE user_track_id = ?
+        ORDER BY usage_count DESC, word ASC`
+      )
+      .all(trackId) as Array<{
+      id: string;
+      word: string;
+      meaning: string;
+      example: string;
+      usageCount: number;
+      firstSeenAt: string;
+      lastSeenAt: string;
+    }>;
+  }
+
+  getGrammarPatternList(trackId: string) {
+    const db = getDatabaseClient();
+    return db
+      .prepare(
+        `SELECT
+          id,
+          pattern_type as patternType,
+          explanation,
+          occurrences,
+          first_seen_at as firstSeenAt,
+          last_seen_at as lastSeenAt
+        FROM grammar_patterns
+        WHERE user_track_id = ?
+        ORDER BY occurrences DESC, pattern_type ASC`
+      )
+      .all(trackId) as Array<{
+      id: string;
+      patternType: string;
+      explanation: string;
+      occurrences: number;
+      firstSeenAt: string;
+      lastSeenAt: string;
+    }>;
+  }
 }
 
 function parseTopicHints(hintsJson: string): string[] {
@@ -101,4 +153,3 @@ function parseTopicHints(hintsJson: string): string[] {
 }
 
 export const learning = new LearningService();
-

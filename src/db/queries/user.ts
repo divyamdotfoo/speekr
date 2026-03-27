@@ -86,6 +86,15 @@ class UserService {
       )
       .all(userId) as Array<UserTrack & { languageLabel: string }>;
   }
+
+  getUserWithAllTracks(): { user: User; tracks: Array<UserTrack & { languageLabel: string }> } | null {
+    const user = this.getPrimaryUser();
+    if (!user) {
+      return null;
+    }
+    const tracks = this.listUserTracksByUserId(user.id);
+    return { user, tracks };
+  }
 }
 
 export const user = new UserService();
