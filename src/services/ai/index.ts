@@ -4,7 +4,7 @@ import type {
   AIProviderInterface,
   AIRequestParams,
 } from "../../types/index.ts";
-import { getConfiguration } from "../../db/queries.ts";
+import { config } from "../../db/queries/index.ts";
 import { AnthropicProvider } from "./anthropic.ts";
 import { DeepgramProvider } from "./deepgram.ts";
 import { OpenAIProvider } from "./openai.ts";
@@ -41,7 +41,7 @@ function loadProvider(config: AIConfig): AIProviderInterface {
 }
 
 function resolveAIConfig(params?: AIRequestParams): AIConfig {
-  const configuration = getConfiguration();
+  const configuration = config.getConfiguration();
   const requestedProvider = params?.provider;
   const provider = (requestedProvider ??
     configuration.defaultModel ??

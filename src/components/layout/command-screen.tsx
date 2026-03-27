@@ -17,6 +17,6 @@ export function renderCommandScreen(input: {
       <MessagePanel tone={tone} title="Details">
         {message}
       </MessagePanel>
-    </AppFrame>,
+    </AppFrame>
   );
 }

@@ -14,17 +14,11 @@ import {
 import { renderRecordingSavedScreen } from "../../components/recording/recording-saved-screen.tsx";
 import { RecordingSessionScreen } from "../../components/recording/recording-session-screen.tsx";
 import {
-  createUserSession,
-  getTrackGrammarPatternTypes,
-  listTopicSuggestionsForTrack,
-  getTrackVocabularyWords,
-  listUserTracksByUserId,
-  getPrimaryUser,
-  getTranscriptionChoice,
-  markSessionFeedbackFailed,
-  saveSessionFeedback,
-  setTranscriptionChoice,
-} from "../../db/queries.ts";
+  config,
+  learning,
+  session as sessionStore,
+  user,
+} from "../../db/queries/index.ts";
 import {
   createRecordSession,
   getFfmpegInstallInstructions,
@@ -60,8 +54,8 @@ export async function runInteractiveRecording(
   ffmpegPath: string,
   input?: { transcription?: Exclude<TranscriptionChoice, null> }
 ) {
-  const primaryUser = getPrimaryUser();
-  const userTracks = primaryUser ? listUserTracksByUserId(primaryUser.id) : [];
+  const primaryUser = user.getPrimaryUser();
+  const userTracks = primaryUser ? user.listUserTracksByUserId(primaryUser.id) : [];
   const selectedTrack =
     userTracks.length <= 1
       ? userTracks[0] ?? null
@@ -173,7 +167,7 @@ export async function runInteractiveRecording(
 
   if (persistedSession && feedback) {
     try {
-      saveSessionFeedback({
+      sessionStore.saveSessionFeedback({
         userSessionId: persistedSession.id,
         userTrackId: persistedSession.userTrackId,
         feedback,
@@ -185,7 +179,7 @@ export async function runInteractiveRecording(
           : "Unknown feedback persistence error.";
       feedbackError = `AI feedback failed: ${detail}`;
       try {
-        markSessionFeedbackFailed({
+        sessionStore.markSessionFeedbackFailed({
           userSessionId: persistedSession.id,
           errorMessage: detail,
         });
@@ -195,7 +189,7 @@ export async function runInteractiveRecording(
     }
   } else if (persistedSession && feedbackError) {
     try {
-      markSessionFeedbackFailed({
+      sessionStore.markSessionFeedbackFailed({
         userSessionId: persistedSession.id,
         errorMessage: feedbackError,
       });
@@ -245,8 +239,8 @@ async function runTranscriptionAndFeedback(input: {
       "Using saved vocabulary and grammar patterns from this track."
     );
     feedbackInput.onLog("Preparing AI feedback context.");
-    const existingVocabularyWords = getTrackVocabularyWords(input.userTrackId);
-    const existingGrammarPatternTypes = getTrackGrammarPatternTypes(
+    const existingVocabularyWords = learning.getTrackVocabularyWords(input.userTrackId);
+    const existingGrammarPatternTypes = learning.getTrackGrammarPatternTypes(
       input.userTrackId
     );
     const ai = getAI();
@@ -320,7 +314,7 @@ async function runTopicChoiceScreen(input: {
   userTrackId: string;
   proficiency: number;
 }): Promise<Topic | null | undefined> {
-  const suggestions = listTopicSuggestionsForTrack({
+  const suggestions = learning.listTopicSuggestionsForTrack({
     userTrackId: input.userTrackId,
     proficiency: input.proficiency,
     limit: 6,
@@ -344,7 +338,7 @@ async function runTopicChoiceScreen(input: {
 }
 
 async function resolveTranscriptionChoiceAfterRecording() {
-  const current = getTranscriptionChoice();
+  const current = config.getTranscriptionChoice();
   if (current) {
     return current;
   }
@@ -353,7 +347,7 @@ async function resolveTranscriptionChoiceAfterRecording() {
   if (!selected) {
     return null;
   }
-  setTranscriptionChoice(selected);
+  config.setTranscriptionChoice(selected);
   return selected;
 }
 
@@ -366,7 +360,7 @@ function tryPersistUserSession(input: {
   audioFilePath: string;
   wordCount: number | null;
 }) {
-  return createUserSession(input);
+  return sessionStore.createUserSession(input);
 }
 
 function countWords(text: string): number {

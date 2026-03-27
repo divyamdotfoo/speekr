@@ -1,7 +1,7 @@
 import { CommanderError, type Command } from "commander";
 import type { CommandRegistrar } from "../types.ts";
 import { runRequiredSetupFlow, runSetupCommandFlow } from "./utils.ts";
-import { isSetupComplete } from "../../db/queries.ts";
+import { setup } from "../../db/queries/index.ts";
 
 export const registerSetupCommand: CommandRegistrar = (program: Command) => {
   return program
@@ -21,7 +21,7 @@ export function applySetupGuard(program: Command) {
       return;
     }
 
-    if (isSetupComplete()) {
+    if (setup.isSetupComplete()) {
       return;
     }
 

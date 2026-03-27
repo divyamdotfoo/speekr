@@ -36,18 +36,34 @@ export function renderRecordingSavedScreen(input: {
         {input.feedback?.sentenceRewrites?.length ? (
           <Box flexDirection="column">
             {input.feedback.sentenceRewrites.map((rewrite, index) => (
-              <Box key={`${rewrite.original}-${index}`} flexDirection="column" marginBottom={1}>
+              <Box
+                key={`${rewrite.original}-${index}`}
+                flexDirection="column"
+                marginBottom={1}
+              >
                 <Box flexDirection="row">
-                  <Box flexDirection="column" flexGrow={1} flexShrink={1} flexBasis={0} marginRight={2}>
+                  <Box
+                    flexDirection="column"
+                    flexGrow={1}
+                    flexShrink={1}
+                    flexBasis={0}
+                    marginRight={2}
+                  >
                     <Text color={theme.muted}>Original</Text>
                     <Text color={theme.text}>{rewrite.original}</Text>
                   </Box>
-                  <Box flexDirection="column" flexGrow={1} flexShrink={1} flexBasis={0}>
+                  <Box
+                    flexDirection="column"
+                    flexGrow={1}
+                    flexShrink={1}
+                    flexBasis={0}
+                  >
                     <Text color={theme.muted}>Improved</Text>
                     <Text color={theme.text}>
                       {renderHighlightedVocabulary(
                         rewrite.improved,
-                        input.feedback?.vocabulary?.map((item) => item.word) ?? []
+                        input.feedback?.vocabulary?.map((item) => item.word) ??
+                          []
                       )}
                     </Text>
                   </Box>
@@ -59,7 +75,9 @@ export function renderRecordingSavedScreen(input: {
             ))}
           </Box>
         ) : (
-          <Text color={theme.muted}>No significant rewrites for this session.</Text>
+          <Text color={theme.muted}>
+            No significant rewrites for this session.
+          </Text>
         )}
       </Box>
 
@@ -68,8 +86,8 @@ export function renderRecordingSavedScreen(input: {
         {input.feedback?.vocabulary?.length ? (
           input.feedback.vocabulary.map((item, index) => (
             <Text key={`${item.word}-${index}`} color={theme.text}>
-              • <Text color={theme.accent}>{item.word}</Text>: {item.meaning} (e.g.{" "}
-              {item.example})
+              • <Text color={theme.accent}>{item.word}</Text>: {item.meaning}{" "}
+              (e.g. {item.example})
             </Text>
           ))
         ) : (
@@ -82,21 +100,26 @@ export function renderRecordingSavedScreen(input: {
         {input.feedback?.grammarPatterns?.length ? (
           input.feedback.grammarPatterns.map((pattern, index) => (
             <Text key={`${pattern.patternType}-${index}`} color={theme.text}>
-              • {pattern.patternType} ({pattern.occurrences}): {pattern.explanation}
+              • {pattern.patternType} ({pattern.occurrences}):{" "}
+              {pattern.explanation}
             </Text>
           ))
         ) : (
-          <Text color={theme.muted}>No recurring grammar patterns detected.</Text>
+          <Text color={theme.muted}>
+            No recurring grammar patterns detected.
+          </Text>
         )}
       </Box>
 
       <Box marginTop={1} flexDirection="column">
         <SectionTitle label="Feedback summary" />
         <Text color={theme.text}>
-          {input.feedback?.summary ?? input.feedbackError ?? "No feedback summary available."}
+          {input.feedback?.summary ??
+            input.feedbackError ??
+            "No feedback summary available."}
         </Text>
       </Box>
-    </AppFrame>,
+    </AppFrame>
   );
 }
 
@@ -121,7 +144,13 @@ function renderHighlightedVocabulary(text: string, words: string[]) {
   const matcher = new RegExp(`(${pattern})`, "gi");
   const segments = text.split(matcher);
   return segments.map((segment, index) => {
-    if (normalizedWords.some((word) => word.localeCompare(segment, undefined, { sensitivity: "accent" }) === 0 || word.toLocaleLowerCase() === segment.toLocaleLowerCase())) {
+    if (
+      normalizedWords.some(
+        (word) =>
+          word.localeCompare(segment, undefined, { sensitivity: "accent" }) ===
+            0 || word.toLocaleLowerCase() === segment.toLocaleLowerCase()
+      )
+    ) {
       return (
         <Text key={`${segment}-${index}`} color={theme.accent}>
           {segment}

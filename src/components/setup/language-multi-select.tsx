@@ -117,12 +117,17 @@ export function LanguageMultiSelect({
         paddingY={0}
       >
         <Box>
-          <Text color={theme.brand}>Selected ({selectedLanguages.length}): </Text>
+          <Text color={theme.brand}>
+            Selected ({selectedLanguages.length}):{" "}
+          </Text>
           {selectedLanguages.length === 0 ? (
             <Text color={theme.muted}>none yet</Text>
           ) : (
             selectedLanguages.map((language, index) => (
-              <Text key={language.id} color={badgeColors[index % badgeColors.length]}>
+              <Text
+                key={language.id}
+                color={badgeColors[index % badgeColors.length]}
+              >
                 [{language.label}]
                 {index < selectedLanguages.length - 1 ? " " : ""}
               </Text>
@@ -139,7 +144,9 @@ export function LanguageMultiSelect({
 
       {filteredLanguages.length === 0 ? (
         <Box marginTop={1}>
-          <Text color={theme.muted}>No matching languages. Try a different search.</Text>
+          <Text color={theme.muted}>
+            No matching languages. Try a different search.
+          </Text>
         </Box>
       ) : (
         <Box marginTop={1} flexDirection="column">

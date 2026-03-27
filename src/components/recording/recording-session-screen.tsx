@@ -102,7 +102,9 @@ export function RecordingSessionScreen({
           </Box>
 
           <Box marginBottom={1}>
-            <Text color={theme.muted}>Duration: {formatElapsed(elapsedMs)}</Text>
+            <Text color={theme.muted}>
+              Duration: {formatElapsed(elapsedMs)}
+            </Text>
           </Box>
         </>
       )}

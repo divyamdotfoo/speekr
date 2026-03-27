@@ -1,9 +1,21 @@
-import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type PropsWithChildren } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type PropsWithChildren,
+} from "react";
 import { Box, Text } from "ink";
 import { AppFrame } from "../layout/app-frame.tsx";
 import { theme } from "../theme/tokens.ts";
 import { LOG_PANEL_LINES } from "../../constants/index.ts";
-import { buildFixedLogLines, formatClock, getSpinnerFrame } from "../progress/utils.ts";
+import {
+  buildFixedLogLines,
+  formatClock,
+  getSpinnerFrame,
+} from "../progress/utils.ts";
 import type { LoadingController } from "./loading-controller.ts";
 
 export function LoadingProvider<StepId extends string>(
@@ -47,7 +59,9 @@ export function LoadingProvider<StepId extends string>(
       {state.visible ? (
         <AppFrame title={state.title} subtitle={state.subtitle}>
           <Box marginBottom={1}>
-            <Text color={state.status === "error" ? theme.danger : theme.success}>
+            <Text
+              color={state.status === "error" ? theme.danger : theme.success}
+            >
               {getSpinnerFrame(tick)}
             </Text>
             <Text color={theme.muted}> </Text>
@@ -77,7 +91,11 @@ export function LoadingProvider<StepId extends string>(
                     : theme.muted
                 }
               >
-                {item.state === "done" ? "✓" : item.state === "active" ? "›" : "○"}{" "}
+                {item.state === "done"
+                  ? "✓"
+                  : item.state === "active"
+                  ? "›"
+                  : "○"}{" "}
                 {item.label}
               </Text>
             ))}
@@ -85,11 +103,13 @@ export function LoadingProvider<StepId extends string>(
 
           <Box flexDirection="column">
             <Text color={theme.muted}>Live logs</Text>
-            {buildFixedLogLines(state.logs, LOG_PANEL_LINES).map((line, index) => (
-              <Text key={`${index}-${line}`} color={theme.muted}>
-                {line}
-              </Text>
-            ))}
+            {buildFixedLogLines(state.logs, LOG_PANEL_LINES).map(
+              (line, index) => (
+                <Text key={`${index}-${line}`} color={theme.muted}>
+                  {line}
+                </Text>
+              )
+            )}
           </Box>
         </AppFrame>
       ) : null}
@@ -100,11 +120,14 @@ export function LoadingProvider<StepId extends string>(
 export function useLoadingController<StepId extends string>() {
   const context = useContext(LoadingControllerContext);
   if (!context) {
-    throw new Error("useLoadingController must be used within LoadingProvider.");
+    throw new Error(
+      "useLoadingController must be used within LoadingProvider."
+    );
   }
   return context as unknown as LoadingController<StepId>;
 }
 
-const LoadingControllerContext = createContext<LoadingController<string> | null>(null);
+const LoadingControllerContext =
+  createContext<LoadingController<string> | null>(null);
 const TICK_INTERVAL_MS = 120;
 const ELAPSED_INTERVAL_MS = 1000;

@@ -2,7 +2,7 @@ import {
   promptResetConfirmation,
   renderResetOutcomeScreen,
 } from "../../components/reset/reset-flow.tsx";
-import { resetDatabase } from "../../db/queries.ts";
+import { setup } from "../../db/queries/index.ts";
 
 export async function runResetCommandFlow() {
   const shouldReset = await promptResetConfirmation();
@@ -11,6 +11,6 @@ export async function runResetCommandFlow() {
     return;
   }
 
-  resetDatabase();
+  setup.resetDatabase();
   renderResetOutcomeScreen({ wasReset: true });
 }

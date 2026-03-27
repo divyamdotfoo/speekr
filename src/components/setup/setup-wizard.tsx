@@ -4,12 +4,11 @@ import SelectInput from "ink-select-input";
 import TextInput from "ink-text-input";
 import { useMemo, useState } from "react";
 import {
-  getConfiguration,
-  getPrimaryUser,
-  listSupportedLanguages,
-  listUserTracksByUserId,
-  runInitialSetup,
-} from "../../db/queries.ts";
+  config,
+  learning,
+  setup,
+  user,
+} from "../../db/queries/index.ts";
 import type {
   AIProvider,
   Configuration,
@@ -55,7 +54,7 @@ export async function runSetupFlow(commandName: string): Promise<boolean> {
     return false;
   }
 
-  const languages = listSupportedLanguages();
+  const languages = learning.listSupportedLanguages();
   const defaults = readSetupDefaults(languages);
   void commandName;
 
@@ -69,7 +68,7 @@ export async function runSetupFlow(commandName: string): Promise<boolean> {
           resolve(false);
         }}
         onSubmit={async (answers: SetupAnswers) => {
-          runInitialSetup(answers);
+          setup.runInitialSetup(answers);
           instance.unmount();
           resolve(true);
         }}
@@ -141,7 +140,8 @@ function SetupWizard({
       ? "Deepgram"
       : "OpenAI";
 
-  const currentStepNumber = step === "api_key" ? 5 + keyKindsIndex : activeStepIndex;
+  const currentStepNumber =
+    step === "api_key" ? 5 + keyKindsIndex : activeStepIndex;
 
   useInput((input, key) => {
     if (key.escape || (key.ctrl && input === "c")) {
@@ -232,7 +232,11 @@ function SetupWizard({
     setProviderApiKeyError(null);
 
     const nextValue =
-      trimmedValue.length === 0 ? undefined : trimmedValue.toLowerCase() === "clear" ? null : trimmedValue;
+      trimmedValue.length === 0
+        ? undefined
+        : trimmedValue.toLowerCase() === "clear"
+        ? null
+        : trimmedValue;
     const nextCollected = {
       ...collectedApiKeysByKind,
       ...(nextValue !== undefined ? { [activeKind]: nextValue } : {}),
@@ -298,7 +302,9 @@ function SetupWizard({
             <Text color={theme.muted}>
               Current:{" "}
               {languages
-                .filter((language) => defaults.languageIds.includes(language.id))
+                .filter((language) =>
+                  defaults.languageIds.includes(language.id)
+                )
                 .map((language) => language.label)
                 .join(", ")}
             </Text>
@@ -328,8 +334,8 @@ function SetupWizard({
         </Box>
       )}
 
-      {step === "username" ||
-      step === "language" ? null : step === "provider" ? (
+      {step === "username" || step === "language" ? null : step ===
+        "provider" ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text color={theme.brand}>
             Which AI provider should Speekr use (grammar check, vocabulary,
@@ -347,7 +353,11 @@ function SetupWizard({
                 ...(defaults.defaultModel
                   ? [
                       {
-                        label: `Keep current (${defaults.defaultModel === "anthropic" ? "Anthropic" : "OpenAI"})`,
+                        label: `Keep current (${
+                          defaults.defaultModel === "anthropic"
+                            ? "Anthropic"
+                            : "OpenAI"
+                        })`,
                         value: `keep:${defaults.defaultModel}` as const,
                       },
                     ]
@@ -397,14 +407,20 @@ function SetupWizard({
             {defaults.transcriptionChoice === "local"
               ? "Local"
               : defaults.transcriptionChoice === "openai"
-                ? "OpenAI"
-                : "Deepgram"}
+              ? "OpenAI"
+              : "Deepgram"}
           </Text>
           <Box marginTop={1}>
             <SelectInput
               items={[
                 {
-                  label: `Keep current (${defaults.transcriptionChoice === "local" ? "Local" : defaults.transcriptionChoice === "openai" ? "OpenAI" : "Deepgram"})`,
+                  label: `Keep current (${
+                    defaults.transcriptionChoice === "local"
+                      ? "Local"
+                      : defaults.transcriptionChoice === "openai"
+                      ? "OpenAI"
+                      : "Deepgram"
+                  })`,
                   value: `keep:${defaults.transcriptionChoice}` as const,
                 },
                 {
@@ -535,13 +551,15 @@ function resolveSetupStepLabel(step: SetupStep) {
 }
 
 function readSetupDefaults(languages: SupportedLanguage[]): SetupDefaults {
-  const user = getPrimaryUser();
-  const configuration = getConfiguration();
-  const tracks = user ? listUserTracksByUserId(user.id) : [];
-  const languageByCode = new Map(languages.map((language) => [language.code, language.id]));
+  const primaryUser = user.getPrimaryUser();
+  const configuration = config.getConfiguration();
+  const tracks = primaryUser ? user.listUserTracksByUserId(primaryUser.id) : [];
+  const languageByCode = new Map(
+    languages.map((language) => [language.code, language.id])
+  );
 
   return {
-    username: user?.name ?? "",
+    username: primaryUser?.name ?? "",
     languageIds: tracks
       .map((track) => languageByCode.get(track.language))
       .filter((value): value is string => Boolean(value)),

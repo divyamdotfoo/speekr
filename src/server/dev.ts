@@ -6,7 +6,9 @@ const server = startDashboardServer(port, { dashboardDevServerUrl });
 
 server.on("listening", () => {
   process.stdout.write(
-    `Dashboard API server on http://localhost:${String(port)} (frontend dev server: ${dashboardDevServerUrl})\n`
+    `Dashboard API server on http://localhost:${String(
+      port
+    )} (frontend dev server: ${dashboardDevServerUrl})\n`
   );
 });
 

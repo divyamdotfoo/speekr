@@ -76,7 +76,8 @@ const TRANSCRIPTION_CHOICES: Array<{
   },
   {
     value: "openai",
-    label: "OpenAI (usage-based cost, works without setup, uses OpenAI Whisper)",
+    label:
+      "OpenAI (usage-based cost, works without setup, uses OpenAI Whisper)",
   },
   {
     value: "deepgram",
