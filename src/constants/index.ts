@@ -6,18 +6,17 @@ export const LOG_PANEL_LINES = 6;
 
 export const AUDIO_RECORDING_CONFIG = {
   channels: "1",
-  sampleRate: "48000",
+  sampleRate: "16000",
   codec: "pcm_s16le",
-  // Louder than this threshold counts as non-silence. Stricter (less negative) noise
-  // treats quiet/distant background as silence so prolonged pauses still trigger detection.
-  silenceFilter: "silencedetect=noise=-10dB:d=1.5",
-  inputDevice: null as string | null,
+  silenceThresholdDb: -18,
+  silenceDurationSec: 0.5,
+  rejectVolumeBelowDb: -45,
 } as const;
 
-export const RECORDING_SILENCE_CONFIG = {
-  silenceWarningMs: 10_000,
-  silenceAutoStopMs: 20_000,
-  silenceHintIntervalMs: 5_000,
+export const AUDIO_INPUT_DEFAULTS = {
+  darwin: ":1",
+  win32: 'audio="Microphone"',
+  linux: "default",
 } as const;
 
 export const SUPPORTED_LANGUAGES: Array<

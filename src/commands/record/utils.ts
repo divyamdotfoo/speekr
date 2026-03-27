@@ -92,7 +92,6 @@ export async function runInteractiveRecording(
       createElement(RecordingSessionScreen, {
         session,
         meta: currentLevelMeta,
-        topicHints: selectedTopic?.hints ?? [],
         topicTitle: selectedTopic?.title,
         topicDescription: selectedTopic?.description,
       })
@@ -127,10 +126,7 @@ export async function runInteractiveRecording(
     }
 
     renderRecordingSavedScreen({
-      recordingStatusLabel:
-        result.stopReason === "silence_timeout"
-          ? "Stopped after prolonged silence"
-          : "Capture complete",
+      recordingStatusLabel: "Capture complete",
       recordingDurationMs: result.durationMs,
       progressStatusLabel:
         "Skipped: transcription mode not selected for this recording.",
@@ -209,10 +205,7 @@ export async function runInteractiveRecording(
   }
 
   renderRecordingSavedScreen({
-    recordingStatusLabel:
-      result.stopReason === "silence_timeout"
-        ? "Stopped after prolonged silence"
-        : "Capture complete",
+    recordingStatusLabel: "Capture complete",
     recordingDurationMs: result.durationMs,
     progressStatusLabel:
       feedbackError ??

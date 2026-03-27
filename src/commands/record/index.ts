@@ -31,7 +31,6 @@ export const registerRecordCommand: CommandRegistrar = (program: Command) => {
         });
         return;
       }
-
       const ffmpegPath = resolveFfmpegExecutable();
       if (!ffmpegPath) {
         showMissingFfmpegNotice();

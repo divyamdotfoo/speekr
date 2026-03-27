@@ -21,22 +21,17 @@ export function AppFrame({ title, subtitle, meta, children }: AppFrameProps) {
         <Box marginBottom={1} justifyContent="space-between">
           <Box>
             <Text color={theme.accent}>◤ </Text>
-            <Text color={theme.brand}>
-              {glyphs.brand} SPEEKR
-            </Text>
-            <Text color={theme.muted}>  /  </Text>
+            <Text color={theme.brand}>{glyphs.brand} SPEEKR</Text>
+            <Text color={theme.muted}> / </Text>
             <Text color={theme.text}>{title}</Text>
             {subtitle ? (
               <>
-                <Text color={theme.muted}>  /  </Text>
+                <Text color={theme.muted}> / </Text>
                 <Text color={theme.accent}>{subtitle}</Text>
               </>
             ) : null}
           </Box>
           {meta ? <Text color={theme.muted}>[{meta}]</Text> : null}
-        </Box>
-        <Box marginBottom={1}>
-          <Text color={theme.muted}>────────────────────────────────────────</Text>
         </Box>
         {children}
       </Box>

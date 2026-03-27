@@ -81,38 +81,29 @@ export type Configuration = {
 // Stored as a numeric 1..10 rating. UI + DB CHECK constraint enforce bounds.
 export type ProficiencyLevel = number;
 export type TranscriptionChoice = "local" | "openai" | "deepgram" | null;
-
-export type StopReason = "user" | "silence_timeout";
-
+export type RecordingStatus = "speaking" | "silent";
+export type RecordSessionPhase = "starting" | "recording";
+export type StopReason = "user";
 export type RecordSessionResult = {
   outputPath: string;
   durationMs: number;
   stopReason: StopReason;
 };
-
 export type RecordSession = {
   stop: (reason?: StopReason) => void;
   result: Promise<RecordSessionResult>;
-  on: <K extends "silence-warning" | "silence-cleared" | "silence-hint-tick">(
+  on: <K extends keyof RecordSessionEventMap>(
     event: K,
-    listener: (
-      payload: K extends "silence-warning"
-        ? { secondsUntilAutoStop: number }
-        : K extends "silence-hint-tick"
-        ? { elapsedSilenceMs: number }
-        : undefined
-    ) => void
+    listener: RecordSessionEventMap[K]
   ) => void;
-  off: <K extends "silence-warning" | "silence-cleared" | "silence-hint-tick">(
+  off: <K extends keyof RecordSessionEventMap>(
     event: K,
-    listener: (
-      payload: K extends "silence-warning"
-        ? { secondsUntilAutoStop: number }
-        : K extends "silence-hint-tick"
-        ? { elapsedSilenceMs: number }
-        : undefined
-    ) => void
+    listener: RecordSessionEventMap[K]
   ) => void;
+};
+type RecordSessionEventMap = {
+  "status-change": (status: RecordingStatus) => void;
+  "phase-change": (phase: RecordSessionPhase) => void;
 };
 
 export type LoadingProgressEvent = {

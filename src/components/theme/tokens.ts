@@ -9,9 +9,9 @@ export const theme = {
 } as const;
 
 export const glyphs = {
-  brand: "●",
-  success: "●",
-  warning: "▲",
-  danger: "✕",
-  info: "◦",
+  brand: "▣",
+  success: "✔",
+  warning: "⚠",
+  danger: "✖",
+  info: "•",
 } as const;

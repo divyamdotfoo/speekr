@@ -8,7 +8,12 @@ type ErrorFrameProps = PropsWithChildren<{
   meta?: string;
 }>;
 
-export function ErrorFrame({ title, subtitle, meta, children }: ErrorFrameProps) {
+export function ErrorFrame({
+  title,
+  subtitle,
+  meta,
+  children,
+}: ErrorFrameProps) {
   return (
     <Box flexDirection="column" paddingX={1} paddingY={1}>
       <Box
@@ -21,22 +26,17 @@ export function ErrorFrame({ title, subtitle, meta, children }: ErrorFrameProps)
         <Box marginBottom={1} justifyContent="space-between">
           <Box>
             <Text color={theme.danger}>◤ </Text>
-            <Text color={theme.danger}>
-              {glyphs.danger} SPEEKR
-            </Text>
-            <Text color={theme.muted}>  /  </Text>
+            <Text color={theme.danger}>{glyphs.danger} SPEEKR</Text>
+            <Text color={theme.muted}> / </Text>
             <Text color={theme.text}>{title}</Text>
             {subtitle ? (
               <>
-                <Text color={theme.muted}>  /  </Text>
+                <Text color={theme.muted}> / </Text>
                 <Text color={theme.warning}>{subtitle}</Text>
               </>
             ) : null}
           </Box>
           {meta ? <Text color={theme.muted}>[{meta}]</Text> : null}
-        </Box>
-        <Box marginBottom={1}>
-          <Text color={theme.danger}>────────────────────────────────────────</Text>
         </Box>
         {children}
       </Box>
