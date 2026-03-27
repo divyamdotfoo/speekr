@@ -12,7 +12,7 @@ export const DATABASE_DIRECTORY_PATH = join(homedir(), APP_DIRECTORY);
 export const DATABASE_PATH = join(DATABASE_DIRECTORY_PATH, DATABASE_FILE);
 export const RECORDINGS_DIRECTORY_PATH = join(
   DATABASE_DIRECTORY_PATH,
-  RECORDINGS_DIRECTORY,
+  RECORDINGS_DIRECTORY
 );
 
 let databaseClient: Database.Database | null = null;

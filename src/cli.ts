@@ -11,7 +11,6 @@ export async function cli() {
   }
 
   const program = new Command();
-
   program.name("speekr").description("Practice speaking languages locally");
   registerCommands(program);
 

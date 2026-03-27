@@ -1,5 +1,7 @@
 import type { SupportedLanguage } from "../types/index.ts";
 
+export const APP_NAME = "speekr";
+
 export const TRANSCRIPTION_DEFAULT_MODEL = "base";
 
 export const LOG_PANEL_LINES = 6;
