@@ -2,6 +2,25 @@
   "name": "speekr",
   "version": "0.0.1",
   "description": "Practice speaking languages locally",
+  "keywords": [
+    "cli",
+    "language-learning",
+    "speaking",
+    "transcription",
+    "whisper",
+    "ink",
+    "terminal",
+    "dashboard",
+    "sqlite"
+  ],
+  "homepage": "https://github.com/divyamdotfoo/speekr#readme",
+  "bugs": {
+    "url": "https://github.com/divyamdotfoo/speekr/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/divyamdotfoo/speekr.git"
+  },
   "type": "module",
   "private": false,
   "bin": {
@@ -13,6 +32,7 @@
     "dashboard/dist"
   ],
   "scripts": {
+    "prepublishOnly": "npm run build",
     "build": "pnpm build:dashboard && pnpm build:node",
     "build:dashboard": "vite build --config dashboard/vite.config.ts",
     "build:node": "rm -rf dist && tsc -p tsconfig.json",
@@ -23,7 +43,11 @@
     "dev:dashboard": "vite --config dashboard/vite.config.ts",
     "reset-env": "rm -rf ~/.speekr && rm -rf ~/.cache/whisper && rm -rf ~/.cache/huggingface"
   },
-  "author": "Divyam gupta",
+  "author": {
+    "name": "Divyam gupta",
+    "url": "https://github.com/divyamdotfoo"
+  },
+  "license": "MIT",
   "dependencies": {
     "better-sqlite3": "^12.8.0",
     "commander": "^14.0.3",
